@@ -62,7 +62,7 @@ export default function ChipBadge({
     </Tag>
   );
 
-  const nameFontSize = size <= 44 ? 8 : size <= 56 ? 9 : 10;
+  const nameFontSize = size <= 44 ? 8 : size <= 56 ? 9 : size <= 72 ? 11 : 12;
   const label = (
     <span
       style={{
