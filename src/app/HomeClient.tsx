@@ -1,12 +1,61 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { Game } from '@/types';
+
+interface ActiveGame {
+  game: Game;
+  isHost: boolean;
+  hostName: string;
+}
 
 export default function HomeClient() {
   const router = useRouter();
+  const supabase = useRef(createClient()).current;
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
+
+  useEffect(() => {
+    async function loadActiveGames() {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+      const { data } = await supabase
+        .from('games')
+        .select('*')
+        .in('status', ['lobby', 'playing'])
+        .or(`status.eq.playing,and(status.eq.lobby,created_at.gte.${oneHourAgo})`)
+        .order('created_at', { ascending: false });
+
+      if (!data || data.length === 0) return;
+
+      const games = data as Game[];
+      const hostPlayerIds = games.map(g => g.host_player_id).filter(Boolean) as string[];
+
+      const { data: playersData } = await supabase
+        .from('players')
+        .select('id, name')
+        .in('id', hostPlayerIds);
+
+      const playerMap = Object.fromEntries(
+        ((playersData ?? []) as { id: string; name: string }[]).map(p => [p.id, p.name])
+      );
+
+      const result: ActiveGame[] = games.map(game => {
+        const playerId = localStorage.getItem(`player_${game.room_code}`);
+        return {
+          game,
+          isHost: playerId === game.host_player_id,
+          hostName: game.host_player_id ? (playerMap[game.host_player_id] ?? '') : '',
+        };
+      });
+
+      setActiveGames(result);
+    }
+    loadActiveGames();
+  }, [supabase]);
 
   function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -18,73 +67,106 @@ export default function HomeClient() {
     router.push(`/game/${code}/lobby`);
   }
 
+  function goToGame(game: Game) {
+    if (game.status === 'playing') {
+      router.push(`/game/${game.room_code}/play`);
+    } else {
+      router.push(`/game/${game.room_code}/lobby`);
+    }
+  }
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6">
-      <div className="text-center mb-12">
-        <div className="text-6xl mb-4">⛳</div>
-        <h1 className="text-4xl font-bold text-[#d4af37] tracking-wide">
-          チップゴルフ
-        </h1>
-        <p className="text-green-300 mt-2 text-sm">
-          ベガスゴルフ カジノチップゲーム
-        </p>
+    <main className="min-h-screen flex flex-col p-4 pt-8">
+      {/* ヘッダー */}
+      <div className="flex items-center gap-3 mb-5">
+        <span className="text-4xl">⛳</span>
+        <div>
+          <h1 className="text-2xl font-bold text-[#d4af37] tracking-wide leading-none">チップゴルフ</h1>
+          <p className="text-green-500 text-xs mt-0.5">ベガスゴルフ カジノチップゲーム</p>
+        </div>
       </div>
 
-      <div className="w-full max-w-sm space-y-4">
+      <div className="space-y-3">
+        {/* 開催中のゲーム */}
+        {activeGames.length > 0 && (
+          <div className="card-casino !p-3">
+            <p className="text-[#d4af37] font-semibold text-sm mb-2">開催中のゲーム</p>
+            <div className="space-y-1.5">
+              {activeGames.map(({ game, isHost, hostName }) => (
+                <button
+                  key={game.id}
+                  onClick={() => goToGame(game)}
+                  className="w-full flex items-center justify-between bg-[#0a3d20] rounded-lg px-3 py-2
+                             hover:bg-green-900 transition-colors text-left"
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-[#d4af37] tracking-widest">
+                        {game.room_code}
+                      </span>
+                      {isHost && (
+                        <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">
+                          ホスト
+                        </span>
+                      )}
+                    </div>
+                    {hostName && (
+                      <p className="text-green-500 text-xs">{hostName} のゲーム</p>
+                    )}
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0
+                    ${game.status === 'playing' ? 'bg-yellow-900 text-yellow-300' : 'bg-green-900 text-green-300'}`}>
+                    {game.status === 'playing' ? '進行中' : '待機中'} →
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 新規作成 */}
         <button
           onClick={() => router.push('/game/new')}
-          className="btn-gold w-full text-lg py-4"
+          className="btn-gold w-full py-3 text-base"
         >
           新しいゲームを作成
         </button>
 
-        <div className="card-casino">
-          <p className="text-[#d4af37] font-semibold mb-3 text-center">
-            ゲームに参加
-          </p>
-          <form onSubmit={handleJoin} className="space-y-3">
+        {/* ルームコード参加 */}
+        <div className="card-casino !p-3">
+          <p className="text-[#d4af37] font-semibold text-sm mb-2 text-center">ルームコードで参加</p>
+          <form onSubmit={handleJoin} className="flex gap-2">
             <input
               type="text"
               value={roomCode}
-              onChange={(e) => {
-                setRoomCode(e.target.value.toUpperCase());
-                setError('');
-              }}
-              placeholder="ルームコード（例: ABC123）"
+              onChange={(e) => { setRoomCode(e.target.value.toUpperCase()); setError(''); }}
+              placeholder="ABC123"
               maxLength={6}
-              className="w-full bg-[#0a3d20] border border-green-700 rounded-lg px-4 py-3
-                         text-white placeholder-green-600 text-center text-xl font-mono
-                         tracking-widest focus:outline-none focus:border-[#d4af37]"
+              className="flex-1 bg-[#0a3d20] border border-green-700 rounded-lg px-3 py-2.5
+                         text-white placeholder-green-600 text-center text-lg font-mono
+                         tracking-widest focus:outline-none focus:border-[#d4af37] min-w-0"
             />
-            {error && (
-              <p className="text-red-400 text-sm text-center">{error}</p>
-            )}
             <button
               type="submit"
-              className="w-full bg-green-700 hover:bg-green-600 text-white font-semibold
-                         py-3 rounded-lg border border-green-600 transition-colors"
+              className="bg-green-700 hover:bg-green-600 text-white font-semibold
+                         px-4 py-2.5 rounded-lg border border-green-600 transition-colors shrink-0"
             >
-              参加する
+              参加
             </button>
           </form>
+          {error && <p className="text-red-400 text-xs mt-1.5 text-center">{error}</p>}
         </div>
       </div>
 
-      <div className="mt-8 flex gap-6">
-        <button
-          onClick={() => router.push('/history')}
-          className="text-green-700 text-xs hover:text-green-500 transition-colors"
-        >
+      <div className="mt-auto pt-6 flex justify-center gap-6">
+        <button onClick={() => router.push('/history')} className="text-green-700 text-xs hover:text-green-500 transition-colors">
           ゲーム履歴
         </button>
-        <button
-          onClick={() => router.push('/chips')}
-          className="text-green-700 text-xs hover:text-green-500 transition-colors"
-        >
+        <button onClick={() => router.push('/chips')} className="text-green-700 text-xs hover:text-green-500 transition-colors">
           チップ管理
         </button>
       </div>
-      <p className="mt-4 text-green-700 text-xs">© 2026 チップゴルフ</p>
+      <p className="text-center mt-3 mb-4 text-green-700 text-xs">© 2026 チップゴルフ</p>
     </main>
   );
 }

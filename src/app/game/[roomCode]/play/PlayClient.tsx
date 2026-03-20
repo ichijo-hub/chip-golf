@@ -218,32 +218,29 @@ export default function PlayClient() {
 
       <main className="min-h-screen pb-24">
         {/* ヘッダー */}
-        <div className="sticky top-0 bg-[#0a3d20] border-b border-green-800 px-4 py-3 z-10">
+        <div className="sticky top-0 bg-[#0a3d20] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
-            <p className="text-[#d4af37] font-bold text-lg">チップゴルフ</p>
-            <div className="flex items-center gap-3">
-              <p className="text-green-600 text-xs">{roomCode}</p>
-              {isHost && (
-                <button
-                  onClick={endGame}
-                  className="text-sm bg-red-900 hover:bg-red-800 text-red-200
-                             px-3 py-1.5 rounded-lg border border-red-700"
-                >
-                  ゲーム終了
-                </button>
-              )}
-            </div>
+            <p className="text-[#d4af37] font-bold">{roomCode}</p>
+            {isHost && (
+              <button
+                onClick={endGame}
+                className="text-xs bg-red-900 hover:bg-red-800 text-red-200
+                           px-3 py-1.5 rounded-lg border border-red-700"
+              >
+                ゲーム終了
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="p-4 space-y-4 max-w-md mx-auto">
+        <div className="p-3 space-y-3 max-w-md mx-auto">
           {/* 場のチップ */}
-          <div className="card-casino">
-            <p className="text-[#d4af37] font-semibold mb-3">
+          <div className="card-casino !p-3">
+            <p className="text-[#d4af37] font-semibold text-sm mb-2">
               場のチップ ({fieldChips.length})
             </p>
             {fieldChips.length === 0 ? (
-              <p className="text-green-700 text-sm text-center py-2">チップはすべて配られています</p>
+              <p className="text-green-700 text-xs text-center py-1">チップはすべて配られています</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {fieldChips.map(cs => {
@@ -256,6 +253,7 @@ export default function PlayClient() {
                       chipType={def.chip_type}
                       imageUrl={def.image_url}
                       pointValue={def.point_value}
+                      size={52}
                       flash={(flashCounts[cs.id] ?? 0) > 0}
                       onClick={() => setSelected({ chipState: cs, chipDef: def })}
                     />
@@ -267,10 +265,10 @@ export default function PlayClient() {
 
           {/* プレイヤーごとのチップ */}
           {scores.map(({ player, positivePoints, negativePoints, netScore, chips }) => (
-            <div key={player.id} className="card-casino">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-semibold">{player.name}</span>
+            <div key={player.id} className="card-casino !p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-white font-semibold text-sm">{player.name}</span>
                   {player.id === myPlayerId && (
                     <span className="text-xs text-green-400">（あなた）</span>
                   )}
@@ -281,7 +279,7 @@ export default function PlayClient() {
                   )}
                 </div>
                 <div className="text-right shrink-0 ml-2">
-                  <span className={`font-bold text-xl
+                  <span className={`font-bold text-lg
                     ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
                     {netScore > 0 ? `+${netScore}` : netScore}
                   </span>
@@ -304,6 +302,7 @@ export default function PlayClient() {
                         chipType={chipDef.chip_type}
                         imageUrl={chipDef.image_url}
                         pointValue={chipDef.point_value}
+                        size={52}
                         flash={(flashCounts[cs.id] ?? 0) > 0}
                         onClick={() => setSelected({ chipState: cs, chipDef })}
                       />
@@ -315,23 +314,23 @@ export default function PlayClient() {
           ))}
 
           {/* イベントログ */}
-          <div className="card-casino">
+          <div className="card-casino !p-3">
             <button
               type="button"
               onClick={() => setShowLog(v => !v)}
-              className="w-full flex items-center justify-between text-[#d4af37] font-semibold"
+              className="w-full flex items-center justify-between text-[#d4af37] font-semibold text-sm"
             >
               <span>📋 イベントログ ({events.length})</span>
-              <span className="text-green-500 text-sm">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
+              <span className="text-green-500 text-xs">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
             </button>
 
             {showLog && (
-              <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                 {events.length === 0 ? (
                   <p className="text-green-700 text-sm text-center py-2">まだ操作がありません</p>
                 ) : (
                   events.map((ev) => (
-                    <div key={ev.id} className="text-sm text-green-300 bg-[#0a3d20] rounded px-3 py-2">
+                    <div key={ev.id} className="text-xs text-green-300 bg-[#0a3d20] rounded px-3 py-1.5">
                       {ev.description}
                     </div>
                   ))

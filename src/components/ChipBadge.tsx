@@ -112,7 +112,6 @@ export default function ChipBadge({
             color: isPositive ? '#1a1a1a' : '#fff',
             border: '1.5px solid #0a3d20',
             lineHeight: 1,
-            zIndex: 10,
           }}
         >
           {isPositive ? '+' : '-'}{pointValue}
