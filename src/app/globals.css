@@ -1,26 +1,116 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --casino-green-dark: #0a3d20;
+  --casino-green: #0f5132;
+  --casino-green-light: #166534;
+  --casino-gold: #d4af37;
+  --casino-gold-light: #f0c040;
+  --casino-red: #dc2626;
+  --casino-felt: #157347;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-casino-green-dark: var(--casino-green-dark);
+  --color-casino-green: var(--casino-green);
+  --color-casino-green-light: var(--casino-green-light);
+  --color-casino-gold: var(--casino-gold);
+  --color-casino-gold-light: var(--casino-gold-light);
+  --color-casino-red: var(--casino-red);
+  --color-casino-felt: var(--casino-felt);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  background-color: var(--casino-green-dark);
+  color: #f5f5f5;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* カジノチップ風のボタン */
+.btn-gold {
+  background-color: var(--casino-gold);
+  color: #1a1a1a;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid var(--casino-gold-light);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-gold:hover {
+  background-color: var(--casino-gold-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+.btn-gold:active {
+  transform: translateY(0);
+}
+
+.btn-gold:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* カード */
+.card-casino {
+  background-color: var(--casino-green);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+/* チップバッジ（円形） */
+.chip-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.1;
+  user-select: none;
+}
+
+.chip-badge-interactive {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.chip-badge-interactive:active {
+  transform: scale(0.93);
+}
+
+.chip-positive {
+  background: radial-gradient(circle at 40% 35%, #1e7a45, #0f5132 70%);
+  border: 3px solid var(--casino-gold);
+  color: var(--casino-gold-light);
+  box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.25), 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.chip-negative {
+  background: radial-gradient(circle at 40% 35%, #b91c1c, #7f1d1d 70%);
+  border: 3px solid #f87171;
+  color: #fca5a5;
+  box-shadow: inset 0 0 0 2px rgba(248, 113, 113, 0.25), 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* チップ移動アニメーション */
+@keyframes chip-flash {
+  0%   { transform: scale(1); box-shadow: none; }
+  40%  { transform: scale(1.25); box-shadow: 0 0 16px rgba(212, 175, 55, 0.9); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+.chip-flash {
+  animation: chip-flash 0.5s ease forwards;
+  will-change: transform;
 }
