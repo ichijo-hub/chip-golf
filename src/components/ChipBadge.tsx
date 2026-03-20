@@ -9,6 +9,7 @@ interface ChipBadgeProps {
   pointValue?: number;
   size?: number; // px（デフォルト64）
   flash?: boolean;
+  showLabel?: boolean;
   onClick?: () => void;
   className?: string;
 }
@@ -20,6 +21,7 @@ export default function ChipBadge({
   pointValue,
   size = 64,
   flash = false,
+  showLabel = true,
   onClick,
   className = '',
 }: ChipBadgeProps) {
@@ -83,7 +85,7 @@ export default function ChipBadge({
     return (
       <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
         {chip}
-        {label}
+        {showLabel && label}
       </div>
     );
   }
@@ -98,15 +100,15 @@ export default function ChipBadge({
             position: 'absolute',
             top: -4,
             right: -4,
-            minWidth: 18,
-            height: 18,
+            minWidth: Math.max(18, Math.round(size * 0.25)),
+            height: Math.max(18, Math.round(size * 0.25)),
             borderRadius: '9999px',
-            fontSize: 10,
+            fontSize: Math.max(10, Math.round(size * 0.12)),
             fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '0 3px',
+            padding: '0 4px',
             pointerEvents: 'none',
             background: isPositive ? '#d4af37' : '#ef4444',
             color: isPositive ? '#1a1a1a' : '#fff',
@@ -117,7 +119,7 @@ export default function ChipBadge({
           {isPositive ? '+' : '-'}{pointValue}
         </span>
       </div>
-      {label}
+      {showLabel && label}
     </div>
   );
 }

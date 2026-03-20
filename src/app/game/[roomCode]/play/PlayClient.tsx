@@ -176,36 +176,46 @@ export default function PlayClient() {
         >
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-[#d4af37] font-bold text-lg">{selected.chipDef.name}</p>
-                <p className={`text-sm font-medium ${selected.chipDef.chip_type === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
-                  {selected.chipDef.chip_type === 'positive' ? '+1 ポジティブ' : '-1 ネガティブ'}
-                </p>
+              <div className="flex items-center gap-4">
+                <ChipBadge
+                  name={selected.chipDef.name}
+                  chipType={selected.chipDef.chip_type}
+                  imageUrl={selected.chipDef.image_url}
+                  pointValue={selected.chipDef.point_value}
+                  size={120}
+                  showLabel={false}
+                />
+                <div>
+                  <p className="text-[#d4af37] font-bold text-xl">{selected.chipDef.name}</p>
+                  <p className={`text-base font-medium ${selected.chipDef.chip_type === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
+                    {selected.chipDef.chip_type === 'positive' ? `+${selected.chipDef.point_value} ポジティブ` : `-${selected.chipDef.point_value} ネガティブ`}
+                  </p>
+                </div>
               </div>
-              <button onClick={() => setSelected(null)} className="text-green-400 text-2xl leading-none">✕</button>
+              <button onClick={() => setSelected(null)} className="text-green-400 text-3xl leading-none self-start">✕</button>
             </div>
-            <p className="text-green-300 text-sm mb-3">移動先を選択:</p>
+            <p className="text-green-300 text-base mb-3">移動先を選択:</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {players.map(p => (
                 <button
                   key={p.id}
                   onClick={() => transferChip(p.id)}
                   disabled={p.id === selected.chipState.holder_player_id}
-                  className={`w-full py-3 px-4 rounded-lg text-left font-medium transition-colors
+                  className={`w-full py-3 px-4 rounded-lg text-left font-medium text-lg transition-colors
                     ${p.id === selected.chipState.holder_player_id
                       ? 'bg-[#0a3d20] text-green-700 cursor-not-allowed'
                       : 'bg-green-800 hover:bg-green-700 active:bg-green-600 text-white'
                     }`}
                 >
                   {p.name}
-                  {p.id === myPlayerId && <span className="text-green-400 text-sm ml-1">（あなた）</span>}
-                  {p.id === selected.chipState.holder_player_id && <span className="text-green-600 text-sm ml-1">（現在）</span>}
+                  {p.id === myPlayerId && <span className="text-green-400 text-base ml-1">（あなた）</span>}
+                  {p.id === selected.chipState.holder_player_id && <span className="text-green-600 text-base ml-1">（現在）</span>}
                 </button>
               ))}
               {selected.chipState.holder_player_id !== null && (
                 <button
                   onClick={() => transferChip(null)}
-                  className="w-full py-3 px-4 rounded-lg text-left font-medium border
+                  className="w-full py-3 px-4 rounded-lg text-left font-medium text-lg border
                              bg-[#0a3d20] border-green-700 hover:border-[#d4af37] text-green-300 transition-colors"
                 >
                   場に戻す
@@ -220,11 +230,11 @@ export default function PlayClient() {
         {/* ヘッダー */}
         <div className="sticky top-0 bg-[#0a3d20] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
-            <p className="text-[#d4af37] font-bold">{roomCode}</p>
+            <p className="text-[#d4af37] font-bold text-lg">{roomCode}</p>
             {isHost && (
               <button
                 onClick={endGame}
-                className="text-xs bg-red-900 hover:bg-red-800 text-red-200
+                className="text-sm bg-red-900 hover:bg-red-800 text-red-200
                            px-3 py-1.5 rounded-lg border border-red-700"
               >
                 ゲーム終了
@@ -236,11 +246,11 @@ export default function PlayClient() {
         <div className="p-3 space-y-3 max-w-md mx-auto">
           {/* 場のチップ */}
           <div className="card-casino !p-3">
-            <p className="text-[#d4af37] font-semibold text-sm mb-2">
+            <p className="text-[#d4af37] font-semibold text-base mb-2">
               場のチップ ({fieldChips.length})
             </p>
             {fieldChips.length === 0 ? (
-              <p className="text-green-700 text-xs text-center py-1">チップはすべて配られています</p>
+              <p className="text-green-700 text-sm text-center py-1">チップはすべて配られています</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {fieldChips.map(cs => {
@@ -268,26 +278,26 @@ export default function PlayClient() {
             <div key={player.id} className="card-casino !p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-white font-semibold text-sm">{player.name}</span>
+                  <span className="text-white font-semibold text-base">{player.name}</span>
                   {player.id === myPlayerId && (
-                    <span className="text-xs text-green-400">（あなた）</span>
+                    <span className="text-sm text-green-400">（あなた）</span>
                   )}
                   {player.is_host && (
-                    <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">
+                    <span className="text-sm bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">
                       ホスト
                     </span>
                   )}
                 </div>
                 <div className="text-right shrink-0 ml-2">
-                  <span className={`font-bold text-lg
+                  <span className={`font-bold text-xl
                     ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
                     {netScore > 0 ? `+${netScore}` : netScore}
                   </span>
-                  <p className="text-green-600 text-xs">+{positivePoints} / -{negativePoints}</p>
+                  <p className="text-green-600 text-sm">+{positivePoints} / -{negativePoints}</p>
                 </div>
               </div>
               {chips.length === 0 ? (
-                <p className="text-green-800 text-xs">チップなし</p>
+                <p className="text-green-800 text-sm">チップなし</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {chips.map(chipDef => {
@@ -318,19 +328,19 @@ export default function PlayClient() {
             <button
               type="button"
               onClick={() => setShowLog(v => !v)}
-              className="w-full flex items-center justify-between text-[#d4af37] font-semibold text-sm"
+              className="w-full flex items-center justify-between text-[#d4af37] font-semibold text-base"
             >
               <span>📋 イベントログ ({events.length})</span>
-              <span className="text-green-500 text-xs">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
+              <span className="text-green-500 text-sm">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
             </button>
 
             {showLog && (
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                 {events.length === 0 ? (
-                  <p className="text-green-700 text-sm text-center py-2">まだ操作がありません</p>
+                  <p className="text-green-700 text-base text-center py-2">まだ操作がありません</p>
                 ) : (
                   events.map((ev) => (
-                    <div key={ev.id} className="text-xs text-green-300 bg-[#0a3d20] rounded px-3 py-1.5">
+                    <div key={ev.id} className="text-sm text-green-300 bg-[#0a3d20] rounded px-3 py-1.5">
                       {ev.description}
                     </div>
                   ))
