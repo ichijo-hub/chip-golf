@@ -75,6 +75,12 @@ export default function PlayClient() {
     if ('Notification' in window) {
       setNotifStatus(Notification.permission as 'default' | 'granted' | 'denied');
     }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [roomCode, loadData]);
 
   async function subscribePush(gameId: string, playerId: string) {
