@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { loadHistory } from '@/lib/gameHistory';
 import { calculateScores } from '@/lib/scoring';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
+import Logo from '@/components/Logo';
 
 interface GameSummary {
   game: Game;
@@ -83,12 +84,14 @@ export default function HistoryClient() {
   }
 
   return (
-    <main className="min-h-screen p-4 pb-24">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center gap-3 mb-6 pt-4">
-          <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">← トップ</button>
-          <h1 className="text-2xl font-bold text-[#d4af37]">ゲーム履歴</h1>
+    <main className="min-h-screen pb-24">
+      <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <button onClick={() => router.push('/')}><Logo size="sm" /></button>
+          <p className="text-[#d4af37] font-bold text-sm">ゲーム履歴</p>
         </div>
+      </div>
+      <div className="max-w-md mx-auto p-4">
 
         {summaries.length === 0 ? (
           <div className="card-casino text-center py-12">
