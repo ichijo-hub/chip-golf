@@ -292,7 +292,7 @@ function TemplateRow({ template, onEdit, disabled }: { template: ChipTemplate; o
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
       <div onClick={onEdit} className="cursor-pointer">
-        <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} size={48} />
+        <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} size={64} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${disabled ? 'text-gray-500' : 'text-white'}`}>{template.name}</p>
