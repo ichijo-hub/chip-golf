@@ -155,7 +155,7 @@ export default function HomeClient() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center gap-8 py-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center gap-8 pt-4 pb-8">
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           ゲーム履歴
         </button>
