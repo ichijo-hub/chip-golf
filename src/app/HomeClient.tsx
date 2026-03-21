@@ -78,12 +78,12 @@ export default function HomeClient() {
   return (
     <main className="min-h-screen p-4 pt-8 pb-16">
       {/* ヘッダー */}
-      <div className="flex items-center gap-3 mb-5">
-        <span className="text-4xl">⛳</span>
-        <div>
-          <h1 className="text-2xl font-bold text-[#d4af37] tracking-wide leading-none">チップゴルフ</h1>
-          <p className="text-green-500 text-xs mt-0.5">ベガスゴルフ カジノチップゲーム</p>
+      <div className="flex flex-col items-center mb-6">
+        <div className="w-16 h-16 rounded-full bg-[#d4af37] flex items-center justify-center mb-3 shadow-lg">
+          <span className="text-3xl leading-none">⛳</span>
         </div>
+        <h1 className="text-3xl font-bold text-white tracking-tight leading-none">チップゴルフ</h1>
+        <p className="text-green-600 text-xs mt-1.5 tracking-wide">ベガスゴルフ カジノチップゲーム</p>
       </div>
 
       <div className="space-y-3">
