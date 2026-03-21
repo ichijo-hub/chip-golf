@@ -29,6 +29,7 @@ export default function PlayClient() {
   const [error, setError] = useState('');
   const [showLog, setShowLog] = useState(false);
   const [flashCounts, setFlashCounts] = useState<Record<string, number>>({});
+  const [notifStatus, setNotifStatus] = useState<'default' | 'granted' | 'denied'>('default');
 
   const loadData = useCallback(async () => {
     const { data: gameData } = await supabase
@@ -71,7 +72,42 @@ export default function PlayClient() {
     const savedId = localStorage.getItem(`player_${roomCode}`);
     if (savedId) setMyPlayerId(savedId);
     loadData();
+    if ('Notification' in window) {
+      setNotifStatus(Notification.permission as 'default' | 'granted' | 'denied');
+    }
   }, [roomCode, loadData]);
+
+  async function subscribePush(gameId: string, playerId: string) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing ?? await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: vapidKey,
+    });
+    await fetch('/api/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameId, playerId, subscription: sub.toJSON() }),
+    });
+  }
+
+  async function requestNotification(gameId: string, playerId: string) {
+    if (!('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotifStatus(permission as 'default' | 'granted' | 'denied');
+    if (permission === 'granted') {
+      await subscribePush(gameId, playerId);
+    }
+  }
+
+  useEffect(() => {
+    if (!game || !myPlayerId) return;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      subscribePush(game.id, myPlayerId);
+    }
+  }, [game?.id, myPlayerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!game) return;
@@ -127,13 +163,25 @@ export default function PlayClient() {
     const fromName = players.find(p => p.id === fromPlayerId)?.name ?? '場';
     const toName = toPlayerId ? (players.find(p => p.id === toPlayerId)?.name ?? '') : '場';
 
+    const description = `${selected.chipDef.name}: ${fromName} → ${toName}`;
     await supabase.from('game_events').insert({
       game_id: game.id,
       chip_state_id: movedId,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
-      description: `${selected.chipDef.name}: ${fromName} → ${toName}`,
+      description,
     });
+
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gameId: game.id,
+        senderPlayerId: myPlayerId,
+        title: 'チップゴルフ',
+        body: description,
+      }),
+    }).catch(() => {});
 
     loadData();
   }
@@ -231,6 +279,16 @@ export default function PlayClient() {
         <div className="sticky top-0 bg-[#0a3d20] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <p className="text-[#d4af37] font-bold text-xl">{roomCode}</p>
+            <div className="flex items-center gap-2">
+              {myPlayerId && game && notifStatus !== 'granted' && notifStatus !== 'denied' && (
+                <button
+                  onClick={() => requestNotification(game.id, myPlayerId)}
+                  className="text-sm bg-green-800 hover:bg-green-700 text-green-200
+                             px-3 py-1.5 rounded-lg border border-green-600"
+                >
+                  🔔 通知ON
+                </button>
+              )}
             {isHost && (
               <button
                 onClick={endGame}
@@ -240,6 +298,7 @@ export default function PlayClient() {
                 ゲーム終了
               </button>
             )}
+            </div>
           </div>
         </div>
 
