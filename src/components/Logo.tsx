@@ -25,7 +25,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
       <ChipIcon size={iconSize} />
       <span
         style={{
-          fontFamily: "'Fredoka', sans-serif",
+          fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize,
           color: 'white',
