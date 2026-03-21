@@ -76,7 +76,7 @@ export default function HomeClient() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col p-4 pt-8">
+    <main className="min-h-screen p-4 pt-8 pb-16">
       {/* ヘッダー */}
       <div className="flex items-center gap-3 mb-5">
         <span className="text-4xl">⛳</span>
@@ -91,7 +91,7 @@ export default function HomeClient() {
         {activeGames.length > 0 && (
           <div className="card-casino !p-3">
             <p className="text-[#d4af37] font-semibold text-sm mb-2">開催中のゲーム</p>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {activeGames.map(({ game, isHost, hostName }) => (
                 <button
                   key={game.id}
@@ -158,15 +158,15 @@ export default function HomeClient() {
         </div>
       </div>
 
-      <div className="mt-auto pt-6 flex justify-center gap-6">
-        <button onClick={() => router.push('/history')} className="text-green-700 text-xs hover:text-green-500 transition-colors">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a2d14] border-t border-green-900 flex justify-center items-center gap-8 py-3">
+        <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           ゲーム履歴
         </button>
-        <button onClick={() => router.push('/chips')} className="text-green-700 text-xs hover:text-green-500 transition-colors">
+        <span className="text-green-900">|</span>
+        <button onClick={() => router.push('/chips')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           チップ管理
         </button>
       </div>
-      <p className="text-center mt-3 mb-4 text-green-700 text-xs">© 2026 チップゴルフ</p>
     </main>
   );
 }
