@@ -17,31 +17,6 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-self.addEventListener('push', (e) => {
-  let data = { title: 'チップゴルフ', body: '' };
-  try { data = e.data.json(); } catch {}
-  e.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icon-192',
-      badge: '/icon-192',
-      tag: 'chip-golf',
-      renotify: true,
-    })
-  );
-});
-
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
-      const c = clients.find(c => c.url.includes('/play'));
-      if (c) return c.focus();
-      return self.clients.openWindow('/');
-    })
-  );
-});
-
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
