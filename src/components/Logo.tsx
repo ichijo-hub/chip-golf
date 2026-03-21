@@ -6,7 +6,7 @@ interface LogoProps {
 }
 
 export default function Logo({ size = 'md', className = '' }: LogoProps) {
-  const iconSize = size === 'sm' ? 28 : size === 'md' ? 36 : 48;
+  const iconSize = size === 'sm' ? 36 : size === 'md' ? 52 : 68;
   const fontSize = size === 'sm' ? 18 : size === 'md' ? 24 : 32;
   const padding = size === 'sm' ? '8px 14px' : size === 'md' ? '10px 20px' : '14px 26px';
 
@@ -17,7 +17,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 20,
-        background: '#2ECC71',
+        background: '#145a32',
         borderRadius: 16,
         padding,
       }}

@@ -81,7 +81,6 @@ export default function HomeClient() {
       {/* ヘッダー */}
       <div className="flex flex-col items-center mb-6">
         <Logo size="md" />
-        <p className="text-green-600 text-xs mt-2 tracking-wide">ベガスゴルフ カジノチップゲーム</p>
       </div>
 
       <div className="space-y-3">

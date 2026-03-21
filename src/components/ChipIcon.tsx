@@ -24,14 +24,13 @@ export default function ChipIcon({ size = 48, className = '' }: ChipIconProps) {
 
       {/* 白い切り込み4本（上下左右） */}
       <g clipPath="url(#chip-icon-clip)">
-        <rect x="20" y="0" width="8" height="9" fill="white" />
-        <rect x="20" y="39" width="8" height="9" fill="white" />
-        <rect x="0" y="20" width="9" height="8" fill="white" />
-        <rect x="39" y="20" width="9" height="8" fill="white" />
+        {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => (
+          <rect key={deg} x="21.5" y="0" width="5" height="7" fill="white" transform={`rotate(${deg} 24 24)`} />
+        ))}
       </g>
 
-      {/* 外周リング */}
-      <circle cx="24" cy="24" r="22" fill="none" stroke="white" strokeWidth="1.5" />
+      {/* 外周縁取り */}
+      <circle cx="24" cy="24" r="22" fill="none" stroke="#d4af37" strokeWidth="2.5" />
 
       {/* 内側破線リング */}
       <circle
