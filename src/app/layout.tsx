@@ -9,7 +9,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: 'チップゴルフ',
+  title: 'Chip Golf',
   description: 'ベガスゴルフのカジノチップゲーム',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
