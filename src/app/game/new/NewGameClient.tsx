@@ -210,17 +210,19 @@ export default function NewGameClient() {
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <button type="button" onClick={() => setNewChipType('positive')}
-                className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
+                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors
                   ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
-                ＋
+                ＋ ポジティブ
               </button>
               <button type="button" onClick={() => setNewChipType('negative')}
-                className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
+                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors
                   ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
-                －
+                － ネガティブ
               </button>
+            </div>
+            <div className="flex gap-2">
               <input
                 type="text" value={newChipName} onChange={e => setNewChipName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomChip())}

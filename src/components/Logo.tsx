@@ -16,7 +16,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 20,
+        gap: 10,
         background: '#145a32',
         borderRadius: 16,
         padding,
@@ -33,7 +33,7 @@ export default function Logo({ size = 'md', className = '' }: LogoProps) {
           letterSpacing: '0.02em',
         }}
       >
-        Chip Golf
+        ChipGolf
       </span>
     </div>
   );

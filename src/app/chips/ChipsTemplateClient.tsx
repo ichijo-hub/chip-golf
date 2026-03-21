@@ -12,12 +12,13 @@ interface EditingTemplate {
   chip_type: ChipType;
   default_point_value: number;
   image_url: string | null;
+  is_active: boolean;
   previewUrl: string | null;
   pendingFile: File | null;
 }
 
 function emptyEdit(chipType: ChipType = 'positive'): EditingTemplate {
-  return { id: null, name: '', chip_type: chipType, default_point_value: 1, image_url: null, previewUrl: null, pendingFile: null };
+  return { id: null, name: '', chip_type: chipType, default_point_value: 1, image_url: null, is_active: true, previewUrl: null, pendingFile: null };
 }
 
 export default function ChipsTemplateClient() {
@@ -48,7 +49,8 @@ export default function ChipsTemplateClient() {
     setEditing({
       id: t.id, name: t.name, chip_type: t.chip_type,
       default_point_value: t.default_point_value,
-      image_url: t.image_url, previewUrl: t.image_url, pendingFile: null,
+      image_url: t.image_url, is_active: t.is_active ?? true,
+      previewUrl: t.image_url, pendingFile: null,
     });
     setError('');
   }
@@ -101,6 +103,7 @@ export default function ChipsTemplateClient() {
         name: editing.name.trim(),
         default_point_value: editing.default_point_value,
         image_url: imageUrl,
+        is_active: editing.is_active,
       }).eq('id', editing.id);
     }
 
@@ -121,8 +124,9 @@ export default function ChipsTemplateClient() {
     return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
   }
 
-  const positiveTemplates = templates.filter(t => t.chip_type === 'positive');
-  const negativeTemplates = templates.filter(t => t.chip_type === 'negative');
+  const positiveTemplates = templates.filter(t => t.chip_type === 'positive' && t.is_active !== false);
+  const negativeTemplates = templates.filter(t => t.chip_type === 'negative' && t.is_active !== false);
+  const disabledTemplates = templates.filter(t => t.is_active === false);
 
   return (
     <>
@@ -182,13 +186,28 @@ export default function ChipsTemplateClient() {
                 <p className="text-green-700 text-xs mt-1">JPG / PNG / WebP、2MB以下</p>
               </div>
 
+              {editing.id && (
+                <div className="flex items-center justify-between py-2 border-t border-green-800">
+                  <span className={`text-sm ${editing.is_active ? 'text-green-400' : 'text-gray-300'}`}>
+                    {editing.is_active ? '有効' : '無効'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditing({ ...editing, is_active: !editing.is_active })}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${editing.is_active ? 'bg-green-500' : 'bg-gray-600'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${editing.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              )}
+
               {error && <p className="text-red-400 text-sm">{error}</p>}
 
               <div className="flex gap-2">
                 <button onClick={handleSave} disabled={saving} className="btn-gold flex-1 py-3">
                   {saving ? '保存中...' : '保存'}
                 </button>
-                {editing.id && (
+                {editing.id && templates.find(t => t.id === editing.id)?.is_active === false && (
                   <button onClick={handleDelete}
                     className="px-4 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 hover:bg-red-800 transition-colors text-sm">
                     削除
@@ -245,24 +264,40 @@ export default function ChipsTemplateClient() {
               </div>
             )}
           </div>
+
+          {disabledTemplates.length > 0 && (
+            <div className="card-casino mb-4 opacity-60">
+              <div className="mb-3">
+                <p className="text-gray-400 font-semibold text-sm">無効なチップ</p>
+                <p className="text-gray-600 text-xs mt-0.5">ゲーム作成時に表示されません</p>
+              </div>
+              <div className="space-y-2">
+                {disabledTemplates.map(t => (
+                  <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} disabled />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </>
   );
 }
 
-function TemplateRow({ template, onEdit }: { template: ChipTemplate; onEdit: () => void }) {
+function TemplateRow({ template, onEdit, disabled }: { template: ChipTemplate; onEdit: () => void; disabled?: boolean }) {
   const isPos = template.chip_type === 'positive';
   return (
-    <div className="flex items-center gap-3 bg-[#145a32] rounded-lg px-3 py-2">
+    <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
       <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} size={48} />
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-white truncate">{template.name}</p>
-        <p className={`text-xs ${isPos ? 'text-green-500' : 'text-red-400'}`}>
+        <p className={`font-medium truncate ${disabled ? 'text-gray-500' : 'text-white'}`}>{template.name}</p>
+        <p className={`text-xs ${disabled ? 'text-gray-600' : isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{template.default_point_value} pt（デフォルト）
         </p>
       </div>
-      <button onClick={onEdit} className="text-sm text-green-400 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">編集</button>
+      <button onClick={onEdit} className="text-sm text-gray-500 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">
+        {disabled ? '管理' : '編集'}
+      </button>
     </div>
   );
 }

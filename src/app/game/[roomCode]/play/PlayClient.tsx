@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
 import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
+import Logo from '@/components/Logo';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -237,8 +238,9 @@ export default function PlayClient() {
         {/* ヘッダー */}
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
-            <p className="text-[#d4af37] font-bold text-xl">{roomCode}</p>
-            <div className="flex items-center gap-2">
+            <button onClick={() => router.push('/')}><Logo size="sm" /></button>
+            <div className="flex items-start gap-3">
+              <p className="text-[#d4af37] font-bold text-sm">Room:{roomCode}</p>
             {isHost && (
               <button
                 onClick={endGame}
