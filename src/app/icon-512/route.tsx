@@ -5,6 +5,7 @@ export const runtime = 'edge';
 export async function GET() {
   return new ImageResponse(
     <svg width="512" height="512" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="48" height="48" fill="#145a32" />
       <defs>
         <clipPath id="c"><circle cx="24" cy="24" r="22" /></clipPath>
       </defs>
