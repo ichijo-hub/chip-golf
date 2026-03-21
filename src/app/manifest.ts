@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'チップゴルフ',
-    short_name: 'チップゴルフ',
+    name: 'Chip Golf',
+    short_name: 'Chip Golf',
     description: 'ベガスゴルフ カジノチップゲーム',
     start_url: '/',
     display: 'standalone',

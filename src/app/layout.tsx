@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'チップゴルフ',
+    title: 'Chip Golf',
   },
   other: {
     'mobile-web-app-capable': 'yes',
