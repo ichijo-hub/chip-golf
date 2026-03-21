@@ -388,3 +388,28 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/lib/supabas
 - **レスポンシブ**: モバイルファースト（主にスマホで使用）
 - **操作性**: タップ中心、大きめのタッチターゲット
 - **フィードバック**: チップ移動時にアニメーション + バイブレーション
+
+## 15. ブランドデザイン
+
+### カラー
+- Primary Green: #2ECC71
+- Dark Green: #27AE60
+- Accent Red: #E74C3C
+- White: #FFFFFF
+
+### フォント
+- ロゴ: Google Fonts「Fredoka」weight 700
+- インストール: `npm install @fontsource/fredoka` または `<link>` で読み込み
+
+### ロゴコンポーネント仕様
+- グリーン背景（#2ECC71）に白文字「Chip Golf」
+- 左にカジノチップアイコン（SVG）
+- チップ: 外円#27AE60、白ストロークの切り込み4本、白破線の内円、中央にゴルフフラッグ（赤）とボール（白）
+- 角丸16px、flex横並び、gap 20px
+
+### 使用箇所
+- トップ画面のヒーロー
+- 待機ルームのヘッダー
+- ゲーム画面の上部バー
+- favicon: チップアイコン単体（グリーン背景）
+```

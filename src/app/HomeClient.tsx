@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Game } from '@/types';
+import Logo from '@/components/Logo';
 
 interface ActiveGame {
   game: Game;
@@ -79,11 +80,8 @@ export default function HomeClient() {
     <main className="min-h-screen p-4 pt-8 pb-16">
       {/* ヘッダー */}
       <div className="flex flex-col items-center mb-6">
-        <div className="w-16 h-16 rounded-full bg-[#d4af37] flex items-center justify-center mb-3 shadow-lg">
-          <span className="text-3xl leading-none">⛳</span>
-        </div>
-        <h1 className="text-3xl font-bold text-white tracking-tight leading-none">チップゴルフ</h1>
-        <p className="text-green-600 text-xs mt-1.5 tracking-wide">ベガスゴルフ カジノチップゲーム</p>
+        <Logo size="md" />
+        <p className="text-green-600 text-xs mt-2 tracking-wide">ベガスゴルフ カジノチップゲーム</p>
       </div>
 
       <div className="space-y-3">
