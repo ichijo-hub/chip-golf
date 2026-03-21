@@ -145,7 +145,7 @@ export default function ChipsTemplateClient() {
                 type="text" value={editing.name}
                 onChange={e => setEditing({ ...editing, name: e.target.value })}
                 placeholder="チップ名" maxLength={20}
-                className="w-full bg-[#0a3d20] border border-green-700 rounded-lg px-4 py-3
+                className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
               />
 
@@ -153,11 +153,11 @@ export default function ChipsTemplateClient() {
                 <p className="text-green-400 text-sm mb-2">デフォルトポイント値</p>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setEditing({ ...editing, default_point_value: Math.max(1, editing.default_point_value - 1) })}
-                    className="w-10 h-10 rounded-full bg-[#0a3d20] border border-green-700 text-white text-xl font-bold
+                    className="w-10 h-10 rounded-full bg-[#145a32] border border-green-700 text-white text-xl font-bold
                                hover:border-[#d4af37] transition-colors">－</button>
                   <span className="text-2xl font-bold text-white w-8 text-center">{editing.default_point_value}</span>
                   <button type="button" onClick={() => setEditing({ ...editing, default_point_value: Math.min(10, editing.default_point_value + 1) })}
-                    className="w-10 h-10 rounded-full bg-[#0a3d20] border border-green-700 text-white text-xl font-bold
+                    className="w-10 h-10 rounded-full bg-[#145a32] border border-green-700 text-white text-xl font-bold
                                hover:border-[#d4af37] transition-colors">＋</button>
                   <span className="text-green-500 text-sm">
                     {editing.chip_type === 'positive' ? `+${editing.default_point_value}` : `-${editing.default_point_value}`} pt
@@ -254,7 +254,7 @@ export default function ChipsTemplateClient() {
 function TemplateRow({ template, onEdit }: { template: ChipTemplate; onEdit: () => void }) {
   const isPos = template.chip_type === 'positive';
   return (
-    <div className="flex items-center gap-3 bg-[#0a3d20] rounded-lg px-3 py-2">
+    <div className="flex items-center gap-3 bg-[#145a32] rounded-lg px-3 py-2">
       <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} size={48} />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-white truncate">{template.name}</p>

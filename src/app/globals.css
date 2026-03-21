@@ -1,9 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --casino-green-dark: #0a3d20;
-  --casino-green: #0f5132;
-  --casino-green-light: #166534;
+  --casino-green-dark: #145a32;
+  --casino-green: #1a7a43;
+  --casino-green-light: #27AE60;
   --casino-gold: #d4af37;
   --casino-gold-light: #f0c040;
   --casino-red: #dc2626;
@@ -90,7 +91,7 @@ body {
 }
 
 .chip-positive {
-  background: radial-gradient(circle at 40% 35%, #1e7a45, #0f5132 70%);
+  background: radial-gradient(circle at 40% 35%, #27AE60, #1a7a43 70%);
   border: 3px solid var(--casino-gold);
   color: var(--casino-gold-light);
   box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.25), 0 2px 6px rgba(0,0,0,0.5);

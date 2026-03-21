@@ -112,7 +112,7 @@ export default function ChipBadge({
             pointerEvents: 'none',
             background: isPositive ? '#d4af37' : '#ef4444',
             color: isPositive ? '#1a1a1a' : '#fff',
-            border: '1.5px solid #0a3d20',
+            border: '1.5px solid #145a32',
             lineHeight: 1,
           }}
         >

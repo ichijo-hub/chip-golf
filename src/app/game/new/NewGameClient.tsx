@@ -149,7 +149,7 @@ export default function NewGameClient() {
             <input
               type="text" value={hostName} onChange={e => setHostName(e.target.value)}
               placeholder="名前を入力" maxLength={20}
-              className="w-full bg-[#0a3d20] border border-green-700 rounded-lg px-4 py-3
+              className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                          text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
             />
           </div>
@@ -213,19 +213,19 @@ export default function NewGameClient() {
             <div className="flex gap-2">
               <button type="button" onClick={() => setNewChipType('positive')}
                 className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
-                  ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#0a3d20] border-green-900 text-green-600'}`}>
+                  ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
                 ＋
               </button>
               <button type="button" onClick={() => setNewChipType('negative')}
                 className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
-                  ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#0a3d20] border-green-900 text-green-600'}`}>
+                  ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
                 －
               </button>
               <input
                 type="text" value={newChipName} onChange={e => setNewChipName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomChip())}
                 placeholder="チップ名" maxLength={20}
-                className="flex-1 bg-[#0a3d20] border border-green-700 rounded-lg px-3 py-2
+                className="flex-1 bg-[#145a32] border border-green-700 rounded-lg px-3 py-2
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm"
               />
               <button type="button" onClick={addCustomChip} disabled={!newChipName.trim()}
@@ -259,7 +259,7 @@ function TemplateSelectRow({
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 border transition-colors
       ${selection.active
         ? isPos ? 'bg-green-900/50 border-green-700' : 'bg-red-900/30 border-red-800'
-        : 'bg-[#0a3d20] border-green-900 opacity-50'}`}
+        : 'bg-[#145a32] border-green-900 opacity-50'}`}
     >
       {/* チップ画像プレビュー */}
       {template.image_url ? (
@@ -280,14 +280,14 @@ function TemplateSelectRow({
       {selection.active && (
         <div className="flex items-center gap-1 shrink-0">
           <button type="button" onClick={() => onPointChange(selection.pointValue - 1)}
-            className="w-6 h-6 rounded-full bg-[#0a3d20] border border-green-700 text-white text-sm font-bold flex items-center justify-center hover:border-[#d4af37]">
+            className="w-6 h-6 rounded-full bg-[#145a32] border border-green-700 text-white text-sm font-bold flex items-center justify-center hover:border-[#d4af37]">
             −
           </button>
           <span className={`w-8 text-center font-bold text-sm ${isPos ? 'text-[#d4af37]' : 'text-red-300'}`}>
             {isPos ? '+' : '-'}{selection.pointValue}
           </span>
           <button type="button" onClick={() => onPointChange(selection.pointValue + 1)}
-            className="w-6 h-6 rounded-full bg-[#0a3d20] border border-green-700 text-white text-sm font-bold flex items-center justify-center hover:border-[#d4af37]">
+            className="w-6 h-6 rounded-full bg-[#145a32] border border-green-700 text-white text-sm font-bold flex items-center justify-center hover:border-[#d4af37]">
             ＋
           </button>
         </div>

@@ -163,7 +163,7 @@ export default function ChipsManageClient() {
               {!editing.chip_template_id && (
                 <input type="text" value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })}
                   placeholder="チップ名" maxLength={20}
-                  className="w-full bg-[#0a3d20] border border-green-700 rounded-lg px-4 py-3
+                  className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                              text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]" />
               )}
               {editing.chip_template_id && (
@@ -175,10 +175,10 @@ export default function ChipsManageClient() {
                 <p className="text-green-400 text-sm mb-2">ポイント値</p>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setEditing({ ...editing, point_value: Math.max(1, editing.point_value - 1) })}
-                    className="w-10 h-10 rounded-full bg-[#0a3d20] border border-green-700 text-white text-xl font-bold hover:border-[#d4af37] transition-colors">－</button>
+                    className="w-10 h-10 rounded-full bg-[#145a32] border border-green-700 text-white text-xl font-bold hover:border-[#d4af37] transition-colors">－</button>
                   <span className="text-2xl font-bold text-white w-8 text-center">{editing.point_value}</span>
                   <button type="button" onClick={() => setEditing({ ...editing, point_value: Math.min(10, editing.point_value + 1) })}
-                    className="w-10 h-10 rounded-full bg-[#0a3d20] border border-green-700 text-white text-xl font-bold hover:border-[#d4af37] transition-colors">＋</button>
+                    className="w-10 h-10 rounded-full bg-[#145a32] border border-green-700 text-white text-xl font-bold hover:border-[#d4af37] transition-colors">＋</button>
                   <span className="text-green-500 text-sm">
                     {editing.chip_type === 'positive' ? `+${editing.point_value}` : `-${editing.point_value}`} pt
                   </span>
@@ -260,18 +260,18 @@ export default function ChipsManageClient() {
             <div className="flex gap-2">
               <button type="button" onClick={() => setNewChipType('positive')}
                 className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
-                  ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#0a3d20] border-green-900 text-green-600'}`}>
+                  ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
                 ＋
               </button>
               <button type="button" onClick={() => setNewChipType('negative')}
                 className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
-                  ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#0a3d20] border-green-900 text-green-600'}`}>
+                  ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
                 －
               </button>
               <input type="text" value={newChipName} onChange={e => setNewChipName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddChip())}
                 placeholder="チップ名" maxLength={20}
-                className="flex-1 bg-[#0a3d20] border border-green-700 rounded-lg px-3 py-2
+                className="flex-1 bg-[#145a32] border border-green-700 rounded-lg px-3 py-2
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm" />
               <button type="button" onClick={handleAddChip} disabled={!newChipName.trim() || adding}
                 className="px-4 py-2 rounded-lg bg-[#d4af37] text-[#1a1a1a] font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed">
@@ -288,7 +288,7 @@ export default function ChipsManageClient() {
 function ChipRow({ chip, onEdit }: { chip: ChipDefinition; onEdit: () => void }) {
   const isPos = chip.chip_type === 'positive';
   return (
-    <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#0a3d20]' : 'bg-[#071f10] opacity-60'}`}>
+    <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#145a32]' : 'bg-[#0b2e1c] opacity-60'}`}>
       <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} size={48} />
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{chip.name}</p>

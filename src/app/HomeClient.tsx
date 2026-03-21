@@ -94,7 +94,7 @@ export default function HomeClient() {
                 <button
                   key={game.id}
                   onClick={() => goToGame(game)}
-                  className="w-full flex items-center justify-between bg-[#0a3d20] rounded-lg px-3 py-2
+                  className="w-full flex items-center justify-between bg-[#145a32] rounded-lg px-3 py-2
                              hover:bg-green-900 transition-colors text-left"
                 >
                   <div>
@@ -140,7 +140,7 @@ export default function HomeClient() {
               onChange={(e) => { setRoomCode(e.target.value.toUpperCase()); setError(''); }}
               placeholder="ABC123"
               maxLength={6}
-              className="flex-1 bg-[#0a3d20] border border-green-700 rounded-lg px-3 py-2.5
+              className="flex-1 bg-[#145a32] border border-green-700 rounded-lg px-3 py-2.5
                          text-white placeholder-green-600 text-center text-lg font-mono
                          tracking-widest focus:outline-none focus:border-[#d4af37] min-w-0"
             />
@@ -156,7 +156,7 @@ export default function HomeClient() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0a2d14] border-t border-green-900 flex justify-center items-center gap-8 py-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center gap-8 py-3">
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           ゲーム履歴
         </button>

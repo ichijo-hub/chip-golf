@@ -206,7 +206,7 @@ export default function LobbyClient() {
                 onChange={(e) => setPlayerName(e.target.value)}
                 placeholder="あなたの名前"
                 maxLength={20}
-                className="w-full bg-[#0a3d20] border border-green-700 rounded-lg px-4 py-3
+                className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
               />
               {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -226,7 +226,7 @@ export default function LobbyClient() {
               {players.map((p) => (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between bg-[#0a3d20] rounded-lg px-4 py-3"
+                  className="flex items-center justify-between bg-[#145a32] rounded-lg px-4 py-3"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium">{p.name}</span>

@@ -210,7 +210,7 @@ export default function PlayClient() {
                   disabled={p.id === selected.chipState.holder_player_id}
                   className={`w-full py-3 px-4 rounded-lg text-left font-medium text-lg transition-colors
                     ${p.id === selected.chipState.holder_player_id
-                      ? 'bg-[#0a3d20] text-green-700 cursor-not-allowed'
+                      ? 'bg-[#145a32] text-green-700 cursor-not-allowed'
                       : 'bg-green-800 hover:bg-green-700 active:bg-green-600 text-white'
                     }`}
                 >
@@ -223,7 +223,7 @@ export default function PlayClient() {
                 <button
                   onClick={() => transferChip(null)}
                   className="w-full py-3 px-4 rounded-lg text-left font-medium text-lg border
-                             bg-[#0a3d20] border-green-700 hover:border-[#d4af37] text-green-300 transition-colors"
+                             bg-[#145a32] border-green-700 hover:border-[#d4af37] text-green-300 transition-colors"
                 >
                   場に戻す
                 </button>
@@ -235,7 +235,7 @@ export default function PlayClient() {
 
       <main className="min-h-screen pb-24">
         {/* ヘッダー */}
-        <div className="sticky top-0 bg-[#0a3d20] border-b border-green-800 px-3 py-2 z-10">
+        <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <p className="text-[#d4af37] font-bold text-xl">{roomCode}</p>
             <div className="flex items-center gap-2">
@@ -349,7 +349,7 @@ export default function PlayClient() {
                   <p className="text-green-700 text-lg text-center py-2">まだ操作がありません</p>
                 ) : (
                   events.map((ev) => (
-                    <div key={ev.id} className="text-base text-green-300 bg-[#0a3d20] rounded px-3 py-1.5">
+                    <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">
                       {ev.description}
                     </div>
                   ))
