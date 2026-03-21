@@ -265,7 +265,7 @@ export default function ChipsManageClient() {
             </button>
             <h1 className="text-2xl font-bold text-[#d4af37]">このゲームのチップ</h1>
           </div>
-          <p className="text-green-600 text-sm mb-4">有効/無効の切替とポイント値はゲームごとに変更できます</p>
+          <p className="text-green-600 text-sm mb-4">※変更はこのゲーム内のみで有効</p>
 
           <div className="card-casino mb-4">
             <p className="text-green-400 font-semibold mb-3">ポジティブチップ</p>
