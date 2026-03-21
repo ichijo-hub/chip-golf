@@ -242,22 +242,13 @@ export default function PlayClient() {
             <div className="flex items-center gap-2">
               <p className="text-[#d4af37] font-bold text-xs">Room:{roomCode}</p>
               {isHost && (
-                <>
-                  <button
-                    onClick={() => router.push(`/game/${roomCode}/chips`)}
-                    className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200
-                               px-2 py-1 rounded-lg border border-green-600"
-                  >
-                    チップ管理
-                  </button>
-                  <button
-                    onClick={endGame}
-                    className="text-xs bg-red-900 hover:bg-red-800 text-red-200
-                               px-2 py-1 rounded-lg border border-red-700"
-                  >
-                    終了
-                  </button>
-                </>
+                <button
+                  onClick={endGame}
+                  className="text-xs bg-red-900 hover:bg-red-800 text-red-200
+                             px-2 py-1 rounded-lg border border-red-700"
+                >
+                  ゲーム終了
+                </button>
               )}
             </div>
           </div>
@@ -266,9 +257,18 @@ export default function PlayClient() {
         <div className="p-3 space-y-3 max-w-md mx-auto">
           {/* 場のチップ */}
           <div className="card-casino !p-3">
-            <p className="text-[#d4af37] font-semibold text-lg mb-2">
-              場のチップ
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[#d4af37] font-semibold text-lg">場のチップ</p>
+              {isHost && (
+                <button
+                  onClick={() => router.push(`/game/${roomCode}/chips`)}
+                  className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200
+                             px-2 py-1 rounded-lg border border-green-600"
+                >
+                  チップ管理
+                </button>
+              )}
+            </div>
             {fieldChips.length === 0 ? (
               <p className="text-green-700 text-base text-center py-1">チップはすべて配られています</p>
             ) : (
