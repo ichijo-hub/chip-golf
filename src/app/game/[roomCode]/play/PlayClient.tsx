@@ -242,13 +242,22 @@ export default function PlayClient() {
             <div className="flex items-start gap-3">
               <p className="text-[#d4af37] font-bold text-sm">Room:{roomCode}</p>
             {isHost && (
-              <button
-                onClick={endGame}
-                className="text-base bg-red-900 hover:bg-red-800 text-red-200
-                           px-3 py-1.5 rounded-lg border border-red-700"
-              >
-                ゲーム終了
-              </button>
+              <>
+                <button
+                  onClick={() => router.push(`/game/${roomCode}/chips`)}
+                  className="text-base bg-[#1a7a43] hover:bg-green-700 text-green-200
+                             px-3 py-1.5 rounded-lg border border-green-600"
+                >
+                  チップ管理
+                </button>
+                <button
+                  onClick={endGame}
+                  className="text-base bg-red-900 hover:bg-red-800 text-red-200
+                             px-3 py-1.5 rounded-lg border border-red-700"
+                >
+                  ゲーム終了
+                </button>
+              </>
             )}
             </div>
           </div>
@@ -258,7 +267,7 @@ export default function PlayClient() {
           {/* 場のチップ */}
           <div className="card-casino !p-3">
             <p className="text-[#d4af37] font-semibold text-lg mb-2">
-              場のチップ ({fieldChips.length})
+              場のチップ
             </p>
             {fieldChips.length === 0 ? (
               <p className="text-green-700 text-base text-center py-1">チップはすべて配られています</p>

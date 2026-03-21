@@ -35,6 +35,7 @@ export default function ChipsManageClient() {
   const [newChipName, setNewChipName] = useState('');
   const [newChipType, setNewChipType] = useState<ChipType>('positive');
   const [adding, setAdding] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadData = useCallback(async () => {
     const { data: gameData } = await supabase.from('games').select('*').eq('room_code', roomCode).single();
@@ -55,7 +56,8 @@ export default function ChipsManageClient() {
 
   useEffect(() => {
     if (!loading && game && myPlayerId && myPlayerId !== game.host_player_id) {
-      router.push(`/game/${roomCode}/lobby`);
+      const dest = game.status === 'playing' ? `/game/${roomCode}/play` : `/game/${roomCode}/lobby`;
+      router.push(dest);
     }
   }, [loading, game, myPlayerId, roomCode, router]);
 
@@ -114,9 +116,17 @@ export default function ChipsManageClient() {
 
   async function handleDelete() {
     if (!editing) return;
-    if (!confirm(`「${editing.name}」をこのゲームから削除しますか？`)) return;
-    await supabase.from('chip_definitions').delete().eq('id', editing.id);
+    const r1 = await supabase.from('chip_states').delete().eq('chip_definition_id', editing.id);
+    if (r1.error) { setError(`chip_states削除失敗: ${r1.error.message}`); setConfirmDelete(false); return; }
+    const r2 = await supabase.from('chip_definitions').delete().eq('id', editing.id);
+    if (r2.error) { setError(`chip_definitions削除失敗: ${r2.error.message}`); setConfirmDelete(false); return; }
     setEditing(null);
+    setConfirmDelete(false);
+    loadData();
+  }
+
+  async function toggleChipActive(chip: ChipDefinition) {
+    await supabase.from('chip_definitions').update({ is_active: !chip.is_active }).eq('id', chip.id);
     loadData();
   }
 
@@ -147,15 +157,15 @@ export default function ChipsManageClient() {
   return (
     <>
       {editing && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setEditing(null)}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => { setEditing(null); setConfirmDelete(false); }}>
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[#d4af37] font-bold text-lg">チップを編集</p>
-              <button onClick={() => setEditing(null)} className="text-green-400 text-2xl leading-none">✕</button>
+              <button onClick={() => { setEditing(null); setConfirmDelete(false); }} className="text-green-400 text-2xl leading-none">✕</button>
             </div>
 
             <div className="flex justify-center mb-4">
-              <ChipBadge name={editing.name} chipType={editing.chip_type} imageUrl={editing.previewUrl} size={80} />
+              <ChipBadge name={editing.name} chipType={editing.chip_type} imageUrl={editing.previewUrl} size={120} />
             </div>
 
             <div className="space-y-3">
@@ -215,17 +225,33 @@ export default function ChipsManageClient() {
 
               {error && <p className="text-red-400 text-sm">{error}</p>}
 
-              <div className="flex gap-2">
-                <button onClick={handleSave} disabled={saving} className="btn-gold flex-1 py-3">
-                  {saving ? '保存中...' : '保存'}
-                </button>
-                {!editing.chip_template_id && (
-                  <button onClick={handleDelete}
-                    className="px-4 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 hover:bg-red-800 transition-colors text-sm">
-                    削除
+              {confirmDelete ? (
+                <div className="space-y-2">
+                  <p className="text-red-300 text-sm text-center">「{editing.name}」を削除しますか？</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmDelete(false)}
+                      className="flex-1 py-3 rounded-lg bg-[#145a32] border border-green-700 text-green-300">
+                      キャンセル
+                    </button>
+                    <button onClick={handleDelete}
+                      className="flex-1 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 font-bold">
+                      削除する
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={handleSave} disabled={saving} className="btn-gold flex-1 py-3">
+                    {saving ? '保存中...' : '保存'}
                   </button>
-                )}
-              </div>
+                  {!editing.chip_template_id && (
+                    <button onClick={() => setConfirmDelete(true)}
+                      className="px-4 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 hover:bg-red-800 transition-colors text-sm">
+                      削除
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -234,7 +260,9 @@ export default function ChipsManageClient() {
       <main className="min-h-screen p-4 pb-24">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3 mb-6 pt-4">
-            <button onClick={() => router.push(`/game/${roomCode}/lobby`)} className="text-green-400 hover:text-[#d4af37] transition-colors">← ロビー</button>
+            <button onClick={() => router.push(game?.status === 'playing' ? `/game/${roomCode}/play` : `/game/${roomCode}/lobby`)} className="text-green-400 hover:text-[#d4af37] transition-colors">
+              {game?.status === 'playing' ? '← ゲームに戻る' : '← ロビー'}
+            </button>
             <h1 className="text-2xl font-bold text-[#d4af37]">このゲームのチップ</h1>
           </div>
           <p className="text-green-600 text-sm mb-4">有効/無効の切替とポイント値はゲームごとに変更できます</p>
@@ -242,7 +270,7 @@ export default function ChipsManageClient() {
           <div className="card-casino mb-4">
             <p className="text-green-400 font-semibold mb-3">ポジティブチップ</p>
             <div className="space-y-2">
-              {positiveChips.map(c => <ChipRow key={c.id} chip={c} onEdit={() => openEdit(c)} />)}
+              {positiveChips.map(c => <ChipRow key={c.id} chip={c} onEdit={() => openEdit(c)} onToggle={() => toggleChipActive(c)} />)}
               {positiveChips.length === 0 && <p className="text-green-700 text-sm">なし</p>}
             </div>
           </div>
@@ -250,26 +278,28 @@ export default function ChipsManageClient() {
           <div className="card-casino mb-4">
             <p className="text-red-400 font-semibold mb-3">ネガティブチップ</p>
             <div className="space-y-2">
-              {negativeChips.map(c => <ChipRow key={c.id} chip={c} onEdit={() => openEdit(c)} />)}
+              {negativeChips.map(c => <ChipRow key={c.id} chip={c} onEdit={() => openEdit(c)} onToggle={() => toggleChipActive(c)} />)}
               {negativeChips.length === 0 && <p className="text-green-700 text-sm">なし</p>}
             </div>
           </div>
 
           <div className="card-casino mb-4">
             <p className="text-[#d4af37] font-semibold mb-3">このゲーム限定チップを追加</p>
-            <div className="flex gap-2">
+            <div className="flex gap-2 mb-2">
               <button type="button" onClick={() => setNewChipType('positive')}
-                className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
+                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors
                   ${newChipType === 'positive' ? 'bg-green-700 border-green-500 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
-                ＋
+                ＋ ポジティブ
               </button>
               <button type="button" onClick={() => setNewChipType('negative')}
-                className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors
+                className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors
                   ${newChipType === 'negative' ? 'bg-red-900 border-red-700 text-white' : 'bg-[#145a32] border-green-900 text-green-600'}`}>
-                －
+                － ネガティブ
               </button>
+            </div>
+            <div className="flex gap-2">
               <input type="text" value={newChipName} onChange={e => setNewChipName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddChip())}
+                onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && (e.preventDefault(), handleAddChip())}
                 placeholder="チップ名" maxLength={20}
                 className="flex-1 bg-[#145a32] border border-green-700 rounded-lg px-3 py-2
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm" />
@@ -285,17 +315,25 @@ export default function ChipsManageClient() {
   );
 }
 
-function ChipRow({ chip, onEdit }: { chip: ChipDefinition; onEdit: () => void }) {
+function ChipRow({ chip, onEdit, onToggle }: { chip: ChipDefinition; onEdit: () => void; onToggle: () => void }) {
   const isPos = chip.chip_type === 'positive';
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#145a32]' : 'bg-[#0b2e1c] opacity-60'}`}>
-      <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} size={48} />
+      <div onClick={onEdit} className="cursor-pointer">
+        <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} size={64} />
+      </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{chip.name}</p>
         <p className={`text-xs ${isPos ? 'text-green-500' : 'text-red-400'}`}>
-          {isPos ? '+' : '-'}{chip.point_value} pt · {chip.is_active ? '有効' : '無効'}
+          {isPos ? '+' : '-'}{chip.point_value} pt
         </p>
       </div>
+      <button
+        onClick={onToggle}
+        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${chip.is_active ? 'bg-green-500' : 'bg-gray-600'}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${chip.is_active ? 'translate-x-5' : 'translate-x-0'}`} />
+      </button>
       <button onClick={onEdit} className="text-sm text-green-400 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">編集</button>
     </div>
   );
