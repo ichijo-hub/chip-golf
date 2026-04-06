@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
-import { createClient } from '@/lib/supabase/client';
+import {
+  doc, getDoc, collection, getDocs, addDoc, updateDoc,
+  onSnapshot, query, orderBy,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
 import { Game, Player } from '@/types';
 
@@ -11,8 +15,6 @@ export default function LobbyClient() {
   const params = useParams();
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
-
-  const supabase = useRef(createClient()).current;
 
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -25,40 +27,22 @@ export default function LobbyClient() {
   const [lobbyUrl, setLobbyUrl] = useState('');
 
   const loadGame = useCallback(async () => {
-    const { data: gameData, error: gameError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('room_code', roomCode)
-      .single();
-
-    if (gameError || !gameData) {
-      setError(
-        gameError?.code === 'PGRST116'
-          ? 'ゲームが見つかりません。ルームコードを確認してください。'
-          : `エラー: ${gameError?.message ?? '不明なエラー'}`
-      );
+    const gameSnap = await getDoc(doc(db, 'games', roomCode));
+    if (!gameSnap.exists()) {
+      setError('ゲームが見つかりません。ルームコードを確認してください。');
       setLoading(false);
       return;
     }
-
-    const typedGame = gameData as Game;
+    const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
     setGame(typedGame);
 
-    const { data: playersData } = await supabase
-      .from('players')
-      .select('*')
-      .eq('game_id', typedGame.id)
-      .order('display_order');
-
-    setPlayers((playersData ?? []) as Player[]);
+    const playersSnap = await getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order')));
+    setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
     setLoading(false);
 
-    if (typedGame.status === 'playing') {
-      router.push(`/game/${roomCode}/play`);
-    } else if (typedGame.status === 'finished') {
-      router.push(`/game/${roomCode}/result`);
-    }
-  }, [roomCode, router, supabase]);
+    if (typedGame.status === 'playing') router.push(`/game/${roomCode}/play`);
+    else if (typedGame.status === 'finished') router.push(`/game/${roomCode}/result`);
+  }, [roomCode, router]);
 
   useEffect(() => {
     setLobbyUrl(`${window.location.origin}/game/${roomCode}/lobby`);
@@ -68,32 +52,24 @@ export default function LobbyClient() {
   }, [roomCode, loadGame]);
 
   useEffect(() => {
-    if (!game) return;
+    // Realtime: game status changes
+    const unsubGame = onSnapshot(doc(db, 'games', roomCode), (snap) => {
+      if (!snap.exists()) return;
+      const updated = { id: snap.id, ...snap.data() } as Game;
+      setGame(updated);
+      if (updated.status === 'playing') router.push(`/game/${roomCode}/play`);
+    });
 
-    const channel = supabase
-      .channel(`lobby:${game.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'players', filter: `game_id=eq.${game.id}` },
-        () => loadGame()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'games', filter: `id=eq.${game.id}` },
-        (payload) => {
-          const updated = payload.new as Game;
-          setGame(updated);
-          if (updated.status === 'playing') {
-            router.push(`/game/${roomCode}/play`);
-          }
-        }
-      )
-      .subscribe();
+    // Realtime: player list changes
+    const unsubPlayers = onSnapshot(
+      query(collection(db, 'games', roomCode, 'players'), orderBy('display_order')),
+      (snap) => {
+        setPlayers(snap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
+      }
+    );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [game?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { unsubGame(); unsubPlayers(); };
+  }, [roomCode, router]);
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -101,33 +77,26 @@ export default function LobbyClient() {
     setJoining(true);
     setError('');
 
-    const { data: player, error: err } = await supabase
-      .from('players')
-      .insert({
-        game_id: game.id,
-        name: playerName.trim(),
-        display_order: players.length,
-        is_host: false,
-      })
-      .select()
-      .single();
+    try {
+      const playerRef = await addDoc(collection(db, 'games', roomCode, 'players'), {
+        id: '', game_id: roomCode, name: playerName.trim(),
+        display_order: players.length, is_host: false, created_at: new Date().toISOString(),
+      });
+      // Update the id field to match the doc id
+      await updateDoc(playerRef, { id: playerRef.id });
 
-    if (err || !player) {
-      setError(`参加に失敗しました: ${err?.message ?? '不明なエラー'}`);
+      localStorage.setItem(`player_${roomCode}`, playerRef.id);
+      saveToHistory(roomCode);
+      setMyPlayerId(playerRef.id);
+    } catch (err: unknown) {
+      setError(`参加に失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
+    } finally {
       setJoining(false);
-      return;
     }
-
-    const p = player as Player;
-    localStorage.setItem(`player_${roomCode}`, p.id);
-    saveToHistory(roomCode);
-    setMyPlayerId(p.id);
-    setJoining(false);
   }
 
   async function handleStartGame() {
-    if (!game) return;
-    await supabase.from('games').update({ status: 'playing' }).eq('id', game.id);
+    await updateDoc(doc(db, 'games', roomCode), { status: 'playing' });
     router.push(`/game/${roomCode}/play`);
   }
 
@@ -152,9 +121,7 @@ export default function LobbyClient() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <p className="text-red-400 text-center">{error}</p>
-        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">
-          トップに戻る
-        </button>
+        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">トップに戻る</button>
       </main>
     );
   }
@@ -163,10 +130,7 @@ export default function LobbyClient() {
     <main className="min-h-screen p-4 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6 pt-4">
-          <button
-            onClick={() => router.push('/')}
-            className="text-green-400 hover:text-[#d4af37] transition-colors"
-          >
+          <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">
             ← トップ
           </button>
           <h1 className="text-2xl font-bold text-[#d4af37]">待機ルーム</h1>
@@ -178,10 +142,7 @@ export default function LobbyClient() {
             <span className="text-5xl font-mono font-bold text-[#d4af37] tracking-widest">
               {roomCode}
             </span>
-            <button
-              onClick={copyRoomCode}
-              className="text-green-400 hover:text-[#d4af37] transition-colors text-sm"
-            >
+            <button onClick={copyRoomCode} className="text-green-400 hover:text-[#d4af37] transition-colors text-sm">
               {copied ? '✓ コピー済み' : 'コピー'}
             </button>
           </div>
@@ -201,11 +162,9 @@ export default function LobbyClient() {
             <p className="text-[#d4af37] font-semibold mb-3">ゲームに参加する</p>
             <form onSubmit={handleJoin} className="space-y-3">
               <input
-                type="text"
-                value={playerName}
+                type="text" value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="あなたの名前"
-                maxLength={20}
+                placeholder="あなたの名前" maxLength={20}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
               />
@@ -224,20 +183,13 @@ export default function LobbyClient() {
           ) : (
             <ul className="space-y-2">
               {players.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between bg-[#145a32] rounded-lg px-4 py-3"
-                >
+                <li key={p.id} className="flex items-center justify-between bg-[#145a32] rounded-lg px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium">{p.name}</span>
-                    {p.id === myPlayerId && (
-                      <span className="text-xs text-green-400">（あなた）</span>
-                    )}
+                    {p.id === myPlayerId && <span className="text-xs text-green-400">（あなた）</span>}
                   </div>
                   {p.is_host && (
-                    <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-2 py-0.5 rounded font-semibold">
-                      ホスト
-                    </span>
+                    <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-2 py-0.5 rounded font-semibold">ホスト</span>
                   )}
                 </li>
               ))}

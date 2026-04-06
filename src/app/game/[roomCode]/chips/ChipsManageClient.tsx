@@ -1,8 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import {
+  doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
+  query, orderBy,
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase/client';
 import { Game, ChipDefinition, ChipType } from '@/types';
 import ChipBadge from '@/components/ChipBadge';
 
@@ -13,8 +18,10 @@ interface EditingChip {
   is_active: boolean;
   point_value: number;
   image_url: string | null;
+  image_scale: number;
+  image_offset_y: number;
+  condition: string;
   chip_template_id: string | null;
-  // テンプレート由来でない場合のみ画像アップロード・名前変更可
   previewUrl: string | null;
   pendingFile: File | null;
 }
@@ -23,7 +30,6 @@ export default function ChipsManageClient() {
   const params = useParams();
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
-  const supabase = useRef(createClient()).current;
 
   const [game, setGame] = useState<Game | null>(null);
   const [chips, setChips] = useState<ChipDefinition[]>([]);
@@ -38,15 +44,14 @@ export default function ChipsManageClient() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadData = useCallback(async () => {
-    const { data: gameData } = await supabase.from('games').select('*').eq('room_code', roomCode).single();
-    if (!gameData) { setLoading(false); return; }
-    const g = gameData as Game;
+    const gameSnap = await getDoc(doc(db, 'games', roomCode));
+    if (!gameSnap.exists()) { setLoading(false); return; }
+    const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
     setGame(g);
-    const { data: chipsData } = await supabase
-      .from('chip_definitions').select('*').eq('game_id', g.id).order('sort_order');
-    setChips((chipsData ?? []) as ChipDefinition[]);
+    const chipsSnap = await getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order')));
+    setChips(chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)));
     setLoading(false);
-  }, [roomCode, supabase]);
+  }, [roomCode]);
 
   useEffect(() => {
     const savedId = localStorage.getItem(`player_${roomCode}`);
@@ -65,7 +70,8 @@ export default function ChipsManageClient() {
     setEditing({
       id: chip.id, name: chip.name, chip_type: chip.chip_type,
       is_active: chip.is_active, point_value: chip.point_value,
-      image_url: chip.image_url, chip_template_id: chip.chip_template_id,
+      image_url: chip.image_url, image_scale: chip.image_scale ?? 1.5, image_offset_y: chip.image_offset_y ?? 40,
+      condition: chip.condition ?? '', chip_template_id: chip.chip_template_id,
       previewUrl: chip.image_url, pendingFile: null,
     });
     setError('');
@@ -80,14 +86,16 @@ export default function ChipsManageClient() {
   }
 
   async function uploadImage(chipId: string, file: File): Promise<string | null> {
-    if (!game) return null;
     const ext = file.name.split('.').pop() ?? 'jpg';
-    const path = `${game.id}/${chipId}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from('chip-images').upload(path, file, { upsert: true, contentType: file.type });
-    if (upErr) { setError(`アップロード失敗: ${upErr.message}`); return null; }
-    const { data } = supabase.storage.from('chip-images').getPublicUrl(path);
-    return data.publicUrl;
+    const path = `${roomCode}/${chipId}.${ext}`;
+    const storageRef = ref(storage, path);
+    try {
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      return await getDownloadURL(storageRef);
+    } catch (e: unknown) {
+      setError(`アップロード失敗: ${e instanceof Error ? e.message : String(e)}`);
+      return null;
+    }
   }
 
   async function handleSave() {
@@ -96,18 +104,20 @@ export default function ChipsManageClient() {
     setError('');
 
     let imageUrl = editing.image_url;
-    // カスタムチップ（テンプレート由来でない）のみ画像アップロード可
     if (!editing.chip_template_id && editing.pendingFile) {
       imageUrl = await uploadImage(editing.id, editing.pendingFile);
       if (imageUrl === null) { setSaving(false); return; }
     }
 
-    await supabase.from('chip_definitions').update({
+    await updateDoc(doc(db, 'games', roomCode, 'chip_definitions', editing.id), {
       name: editing.chip_template_id ? editing.name : editing.name.trim(),
       is_active: editing.is_active,
       point_value: editing.point_value,
+      image_scale: editing.image_scale,
+      image_offset_y: editing.image_offset_y,
+      condition: editing.condition.trim() || null,
       ...(editing.chip_template_id ? {} : { image_url: imageUrl }),
-    }).eq('id', editing.id);
+    });
 
     setSaving(false);
     setEditing(null);
@@ -116,32 +126,35 @@ export default function ChipsManageClient() {
 
   async function handleDelete() {
     if (!editing) return;
-    const r1 = await supabase.from('chip_states').delete().eq('chip_definition_id', editing.id);
-    if (r1.error) { setError(`chip_states削除失敗: ${r1.error.message}`); setConfirmDelete(false); return; }
-    const r2 = await supabase.from('chip_definitions').delete().eq('id', editing.id);
-    if (r2.error) { setError(`chip_definitions削除失敗: ${r2.error.message}`); setConfirmDelete(false); return; }
+    // Delete all chip_states for this chip_definition
+    const statesSnap = await getDocs(collection(db, 'games', roomCode, 'chip_states'));
+    const toDelete = statesSnap.docs.filter(d => d.data().chip_definition_id === editing.id);
+    await Promise.all(toDelete.map(d => deleteDoc(d.ref)));
+    await deleteDoc(doc(db, 'games', roomCode, 'chip_definitions', editing.id));
     setEditing(null);
     setConfirmDelete(false);
     loadData();
   }
 
   async function toggleChipActive(chip: ChipDefinition) {
-    await supabase.from('chip_definitions').update({ is_active: !chip.is_active }).eq('id', chip.id);
+    await updateDoc(doc(db, 'games', roomCode, 'chip_definitions', chip.id), { is_active: !chip.is_active });
     loadData();
   }
 
   async function handleAddChip() {
     if (!newChipName.trim() || !game) return;
     setAdding(true);
-    const { data: newDef, error: defErr } = await supabase
-      .from('chip_definitions').insert({
-        game_id: game.id, name: newChipName.trim(),
-        chip_type: newChipType, point_value: 1,
-        chip_template_id: null, is_default: false, is_active: true, sort_order: chips.length,
-      }).select().single();
-    if (defErr || !newDef) { setAdding(false); return; }
-    const typedDef = newDef as ChipDefinition;
-    await supabase.from('chip_states').insert({ game_id: game.id, chip_definition_id: typedDef.id, holder_player_id: null });
+    const chipDefRef = await addDoc(collection(db, 'games', roomCode, 'chip_definitions'), {
+      id: '', game_id: roomCode, name: newChipName.trim(),
+      chip_type: newChipType, point_value: 1,
+      chip_template_id: null, is_default: false, is_active: true,
+      sort_order: chips.length, image_url: null,
+    });
+    await updateDoc(chipDefRef, { id: chipDefRef.id });
+    await addDoc(collection(db, 'games', roomCode, 'chip_states'), {
+      id: '', game_id: roomCode, chip_definition_id: chipDefRef.id,
+      holder_player_id: null, updated_at: new Date().toISOString(),
+    });
     setNewChipName('');
     setAdding(false);
     loadData();
@@ -151,8 +164,8 @@ export default function ChipsManageClient() {
     return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
   }
 
-  const positiveChips = chips.filter(c => c.chip_type === 'positive');
-  const negativeChips = chips.filter(c => c.chip_type === 'negative');
+  const positiveChips = chips.filter(c => c.chip_type === 'positive').sort((a, b) => b.point_value - a.point_value);
+  const negativeChips = chips.filter(c => c.chip_type === 'negative').sort((a, b) => b.point_value - a.point_value);
 
   return (
     <>
@@ -165,11 +178,10 @@ export default function ChipsManageClient() {
             </div>
 
             <div className="flex justify-center mb-4">
-              <ChipBadge name={editing.name} chipType={editing.chip_type} imageUrl={editing.previewUrl} size={120} />
+              <ChipBadge name={editing.name} chipType={editing.chip_type} imageUrl={editing.previewUrl} imageScale={editing.image_scale} imageOffsetY={editing.image_offset_y} size={120} />
             </div>
 
             <div className="space-y-3">
-              {/* テンプレート由来でない場合のみ名前編集可 */}
               {!editing.chip_template_id && (
                 <input type="text" value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })}
                   placeholder="チップ名" maxLength={20}
@@ -177,10 +189,17 @@ export default function ChipsManageClient() {
                              text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]" />
               )}
               {editing.chip_template_id && (
-                <p className="text-green-600 text-sm">名前・画像はグローバル設定（<button type="button" onClick={() => router.push('/chips')} className="underline text-green-500">チップ管理</button>）で変更できます</p>
+                <p className="text-green-600 text-sm">名前・画像の変更はできません</p>
               )}
 
-              {/* ポイント値 */}
+              <textarea
+                value={editing.condition}
+                onChange={e => setEditing({ ...editing, condition: e.target.value })}
+                placeholder="獲得条件（任意）" maxLength={100} rows={2}
+                className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
+                           text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm resize-none"
+              />
+
               <div>
                 <p className="text-green-400 text-sm mb-2">ポイント値</p>
                 <div className="flex items-center gap-3">
@@ -195,7 +214,6 @@ export default function ChipsManageClient() {
                 </div>
               </div>
 
-              {/* カスタムチップのみ画像アップロード可 */}
               {!editing.chip_template_id && (
                 <div>
                   <p className="text-green-400 text-sm mb-2">チップ画像（任意）</p>
@@ -214,7 +232,32 @@ export default function ChipsManageClient() {
                 </div>
               )}
 
-              {/* 有効/無効 */}
+              {editing.previewUrl && (
+                <div className="space-y-2 border border-green-800 rounded-lg px-3 py-3">
+                  <p className="text-green-400 text-xs font-semibold">画像の表示調整</p>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-green-500 text-xs">拡大率</label>
+                      <span className="text-green-300 text-xs">{editing.image_scale.toFixed(1)}x</span>
+                    </div>
+                    <input type="range" min="1.0" max="3.0" step="0.1"
+                      value={editing.image_scale}
+                      onChange={e => setEditing({ ...editing, image_scale: parseFloat(e.target.value) })}
+                      className="w-full accent-[#d4af37]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-green-500 text-xs">縦位置（上↑ 下↓）</label>
+                      <span className="text-green-300 text-xs">{editing.image_offset_y}%</span>
+                    </div>
+                    <input type="range" min="0" max="100" step="1"
+                      value={editing.image_offset_y}
+                      onChange={e => setEditing({ ...editing, image_offset_y: parseInt(e.target.value) })}
+                      className="w-full accent-[#d4af37]" />
+                  </div>
+                </div>
+              )}
+
               <label className="flex items-center gap-3 cursor-pointer">
                 <div onClick={() => setEditing({ ...editing, is_active: !editing.is_active })}
                   className={`w-11 h-6 rounded-full transition-colors relative ${editing.is_active ? 'bg-green-600' : 'bg-green-900'}`}>
@@ -230,13 +273,9 @@ export default function ChipsManageClient() {
                   <p className="text-red-300 text-sm text-center">「{editing.name}」を削除しますか？</p>
                   <div className="flex gap-2">
                     <button onClick={() => setConfirmDelete(false)}
-                      className="flex-1 py-3 rounded-lg bg-[#145a32] border border-green-700 text-green-300">
-                      キャンセル
-                    </button>
+                      className="flex-1 py-3 rounded-lg bg-[#145a32] border border-green-700 text-green-300">キャンセル</button>
                     <button onClick={handleDelete}
-                      className="flex-1 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 font-bold">
-                      削除する
-                    </button>
+                      className="flex-1 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 font-bold">削除する</button>
                   </div>
                 </div>
               ) : (
@@ -320,13 +359,16 @@ function ChipRow({ chip, onEdit, onToggle }: { chip: ChipDefinition; onEdit: () 
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#145a32]' : 'bg-[#0b2e1c] opacity-60'}`}>
       <div onClick={onEdit} className="cursor-pointer">
-        <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} size={64} />
+        <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} imageScale={chip.image_scale ?? undefined} imageOffsetY={chip.image_offset_y ?? undefined} size={64} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{chip.name}</p>
         <p className={`text-xs ${isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{chip.point_value} pt
         </p>
+        {chip.condition && (
+          <p className="text-xs text-green-700 truncate mt-0.5">{chip.condition}</p>
+        )}
       </div>
       <button
         onClick={onToggle}

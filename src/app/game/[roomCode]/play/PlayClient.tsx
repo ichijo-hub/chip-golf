@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import {
+  doc, getDoc, collection, getDocs, addDoc, updateDoc,
+  onSnapshot, query, orderBy, limit,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
 import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
 import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
@@ -17,7 +21,6 @@ export default function PlayClient() {
   const params = useParams();
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
-  const supabase = useRef(createClient()).current;
 
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -32,16 +35,13 @@ export default function PlayClient() {
   const [flashCounts, setFlashCounts] = useState<Record<string, number>>({});
 
   const loadData = useCallback(async () => {
-    const { data: gameData } = await supabase
-      .from('games').select('*').eq('room_code', roomCode).single();
-
-    if (!gameData) {
+    const gameSnap = await getDoc(doc(db, 'games', roomCode));
+    if (!gameSnap.exists()) {
       setError('ゲームが見つかりません');
       setLoading(false);
       return;
     }
-
-    const typedGame = gameData as Game;
+    const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
     setGame(typedGame);
 
     if (typedGame.status === 'finished') {
@@ -49,24 +49,19 @@ export default function PlayClient() {
       return;
     }
 
-    const [
-      { data: playersData },
-      { data: chipDefsData },
-      { data: chipStatesData },
-      { data: eventsData },
-    ] = await Promise.all([
-      supabase.from('players').select('*').eq('game_id', typedGame.id).order('display_order'),
-      supabase.from('chip_definitions').select('*').eq('game_id', typedGame.id).eq('is_active', true).order('sort_order'),
-      supabase.from('chip_states').select('*').eq('game_id', typedGame.id),
-      supabase.from('game_events').select('*').eq('game_id', typedGame.id).order('created_at', { ascending: false }).limit(30),
+    const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
+      getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
+      getDocs(collection(db, 'games', roomCode, 'chip_states')),
+      getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30))),
     ]);
 
-    setPlayers((playersData ?? []) as Player[]);
-    setChipDefs((chipDefsData ?? []) as ChipDefinition[]);
-    setChipStates((chipStatesData ?? []) as ChipState[]);
-    setEvents((eventsData ?? []) as GameEvent[]);
+    setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
+    setChipDefs(chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)).filter(c => c.is_active !== false));
+    setChipStates(chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState)));
+    setEvents(eventsSnap.docs.map(d => ({ id: d.id, ...d.data() } as GameEvent)));
     setLoading(false);
-  }, [roomCode, router, supabase]);
+  }, [roomCode, router]);
 
   useEffect(() => {
     const savedId = localStorage.getItem(`player_${roomCode}`);
@@ -81,39 +76,35 @@ export default function PlayClient() {
   }, [roomCode, loadData]);
 
   useEffect(() => {
-    if (!game) return;
-
-    const channel = supabase
-      .channel(`play:${game.id}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'chip_states',
-        filter: `game_id=eq.${game.id}`,
-      }, (payload) => {
-        // 変更されたチップをフラッシュ
-        if (payload.new && 'id' in payload.new) {
-          const changedId = (payload.new as ChipState).id;
-          setFlashCounts((prev) => ({ ...prev, [changedId]: (prev[changedId] ?? 0) + 1 }));
+    // Realtime: chip_states changes
+    const unsubChips = onSnapshot(collection(db, 'games', roomCode, 'chip_states'), (snap) => {
+      snap.docChanges().forEach(change => {
+        if (change.type === 'modified' || change.type === 'added') {
+          const changedId = change.doc.id;
+          setFlashCounts(prev => ({ ...prev, [changedId]: (prev[changedId] ?? 0) + 1 }));
         }
-        loadData();
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'game_events',
-        filter: `game_id=eq.${game.id}`,
-      }, () => loadData())
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'games',
-        filter: `id=eq.${game.id}`,
-      }, (payload) => {
-        const updated = payload.new as Game;
-        setGame(updated);
-        if (updated.status === 'finished') {
-          router.push(`/game/${roomCode}/result`);
-        }
-      })
-      .subscribe();
+      });
+      setChipStates(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState)));
+    });
 
-    return () => { supabase.removeChannel(channel); };
-  }, [game?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Realtime: game_events
+    const unsubEvents = onSnapshot(
+      query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30)),
+      (snap) => {
+        setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() } as GameEvent)));
+      }
+    );
+
+    // Realtime: game status
+    const unsubGame = onSnapshot(doc(db, 'games', roomCode), (snap) => {
+      if (!snap.exists()) return;
+      const updated = { id: snap.id, ...snap.data() } as Game;
+      setGame(updated);
+      if (updated.status === 'finished') router.push(`/game/${roomCode}/result`);
+    });
+
+    return () => { unsubChips(); unsubEvents(); unsubGame(); };
+  }, [roomCode, router]);
 
   async function transferChip(toPlayerId: string | null) {
     if (!selected || !game) return;
@@ -122,43 +113,37 @@ export default function PlayClient() {
     const movedId = selected.chipState.id;
 
     setSelected(null);
+    setFlashCounts(prev => ({ ...prev, [movedId]: (prev[movedId] ?? 0) + 1 }));
 
-    await supabase
-      .from('chip_states')
-      .update({ holder_player_id: toPlayerId, updated_at: new Date().toISOString() })
-      .eq('id', movedId);
-
-    // ローカルプレイヤーのフラッシュを即時適用
-    setFlashCounts((prev) => ({ ...prev, [movedId]: (prev[movedId] ?? 0) + 1 }));
+    await updateDoc(doc(db, 'games', roomCode, 'chip_states', movedId), {
+      holder_player_id: toPlayerId,
+      updated_at: new Date().toISOString(),
+    });
 
     const fromName = players.find(p => p.id === fromPlayerId)?.name ?? '場';
     const toName = toPlayerId ? (players.find(p => p.id === toPlayerId)?.name ?? '') : '場';
-
     const description = `${selected.chipDef.name}: ${fromName} → ${toName}`;
-    await supabase.from('game_events').insert({
-      game_id: game.id,
+
+    await addDoc(collection(db, 'games', roomCode, 'game_events'), {
+      id: '', game_id: roomCode,
       chip_state_id: movedId,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
+      hole_number: null,
       description,
+      created_at: new Date().toISOString(),
     });
-
-    loadData();
   }
 
   async function endGame() {
     if (!game) return;
     if (!confirm('ゲームを終了しますか？')) return;
-    await supabase.from('games').update({ status: 'finished' }).eq('id', game.id);
+    await updateDoc(doc(db, 'games', roomCode), { status: 'finished' });
     router.push(`/game/${roomCode}/result`);
   }
 
   if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <p className="text-green-400">読み込み中...</p>
-      </main>
-    );
+    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
   }
 
   if (error) {
@@ -171,17 +156,21 @@ export default function PlayClient() {
   }
 
   const isHost = myPlayerId === game?.host_player_id;
-  const fieldChips = chipStates.filter(cs => cs.holder_player_id === null);
+  const fieldChips = chipStates
+    .filter(cs => cs.holder_player_id === null)
+    .sort((a, b) => {
+      const defA = chipDefs.find(d => d.id === a.chip_definition_id);
+      const defB = chipDefs.find(d => d.id === b.chip_definition_id);
+      const typeOrder = (d: ChipDefinition | undefined) => d?.chip_type === 'positive' ? 0 : 1;
+      if (typeOrder(defA) !== typeOrder(defB)) return typeOrder(defA) - typeOrder(defB);
+      return (defB?.point_value ?? 0) - (defA?.point_value ?? 0);
+    });
   const scores = game ? calculateScores(players, chipStates, chipDefs) : [];
 
   return (
     <>
-      {/* チップ移動モーダル */}
       {selected && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4"
-          onClick={() => setSelected(null)}
-        >
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setSelected(null)}>
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
@@ -189,6 +178,8 @@ export default function PlayClient() {
                   name={selected.chipDef.name}
                   chipType={selected.chipDef.chip_type}
                   imageUrl={selected.chipDef.image_url}
+                  imageScale={selected.chipDef.image_scale ?? undefined}
+                  imageOffsetY={selected.chipDef.image_offset_y ?? undefined}
                   pointValue={selected.chipDef.point_value}
                   size={120}
                   showLabel={false}
@@ -235,7 +226,6 @@ export default function PlayClient() {
       )}
 
       <main className="min-h-screen pb-24">
-        {/* ヘッダー */}
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <button onClick={() => router.push('/')}><Logo size="sm" /></button>
@@ -244,8 +234,7 @@ export default function PlayClient() {
               {isHost && (
                 <button
                   onClick={endGame}
-                  className="text-xs bg-red-900 hover:bg-red-800 text-red-200
-                             px-2 py-1 rounded-lg border border-red-700"
+                  className="text-xs bg-red-900 hover:bg-red-800 text-red-200 px-2 py-1 rounded-lg border border-red-700"
                 >
                   ゲーム終了
                 </button>
@@ -255,15 +244,13 @@ export default function PlayClient() {
         </div>
 
         <div className="p-3 space-y-3 max-w-md mx-auto">
-          {/* 場のチップ */}
           <div className="card-casino !p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[#d4af37] font-semibold text-lg">場のチップ</p>
               {isHost && (
                 <button
                   onClick={() => router.push(`/game/${roomCode}/chips`)}
-                  className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200
-                             px-2 py-1 rounded-lg border border-green-600"
+                  className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
                 >
                   チップ管理
                 </button>
@@ -282,6 +269,8 @@ export default function PlayClient() {
                       name={def.name}
                       chipType={def.chip_type}
                       imageUrl={def.image_url}
+                      imageScale={def.image_scale ?? undefined}
+                      imageOffsetY={def.image_offset_y ?? undefined}
                       pointValue={def.point_value}
                       size={64}
                       flash={(flashCounts[cs.id] ?? 0) > 0}
@@ -293,24 +282,18 @@ export default function PlayClient() {
             )}
           </div>
 
-          {/* プレイヤーごとのチップ */}
           {scores.map(({ player, positivePoints, negativePoints, netScore, chips }) => (
             <div key={player.id} className="card-casino !p-3">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-white font-semibold text-lg">{player.name}</span>
-                  {player.id === myPlayerId && (
-                    <span className="text-base text-green-400">（あなた）</span>
-                  )}
+                  {player.id === myPlayerId && <span className="text-base text-green-400">（あなた）</span>}
                   {player.is_host && (
-                    <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">
-                      ホスト
-                    </span>
+                    <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">ホスト</span>
                   )}
                 </div>
                 <div className="text-right shrink-0 ml-2">
-                  <span className={`font-bold text-2xl
-                    ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
+                  <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
                     {netScore > 0 ? `+${netScore}` : netScore}
                   </span>
                   <p className="text-green-600 text-base">+{positivePoints} / -{negativePoints}</p>
@@ -321,9 +304,7 @@ export default function PlayClient() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {chips.map(chipDef => {
-                    const cs = chipStates.find(
-                      s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id
-                    );
+                    const cs = chipStates.find(s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id);
                     if (!cs) return null;
                     return (
                       <ChipBadge
@@ -331,6 +312,8 @@ export default function PlayClient() {
                         name={chipDef.name}
                         chipType={chipDef.chip_type}
                         imageUrl={chipDef.image_url}
+                        imageScale={chipDef.image_scale ?? undefined}
+                        imageOffsetY={chipDef.image_offset_y ?? undefined}
                         pointValue={chipDef.point_value}
                         size={64}
                         flash={(flashCounts[cs.id] ?? 0) > 0}
@@ -343,7 +326,6 @@ export default function PlayClient() {
             </div>
           ))}
 
-          {/* イベントログ */}
           <div className="card-casino !p-3">
             <button
               type="button"
@@ -353,7 +335,6 @@ export default function PlayClient() {
               <span>📋 イベントログ ({events.length})</span>
               <span className="text-green-500 text-base">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
             </button>
-
             {showLog && (
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                 {events.length === 0 ? (

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
+import { loadHistory } from '@/lib/gameHistory';
 import { Game } from '@/types';
 import Logo from '@/components/Logo';
 
@@ -14,49 +16,34 @@ interface ActiveGame {
 
 export default function HomeClient() {
   const router = useRouter();
-  const supabase = useRef(createClient()).current;
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
 
   useEffect(() => {
     async function loadActiveGames() {
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const history = loadHistory();
+      if (history.length === 0) return;
 
-      const { data } = await supabase
-        .from('games')
-        .select('*')
-        .in('status', ['lobby', 'playing'])
-        .or(`status.eq.playing,and(status.eq.lobby,created_at.gte.${oneHourAgo})`)
-        .order('created_at', { ascending: false });
+      const results: ActiveGame[] = [];
+      for (const entry of history) {
+        const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
+        if (!gameSnap.exists()) continue;
+        const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+        if (game.status === 'finished') continue;
 
-      if (!data || data.length === 0) return;
-
-      const games = data as Game[];
-      const hostPlayerIds = games.map(g => g.host_player_id).filter(Boolean) as string[];
-
-      const { data: playersData } = await supabase
-        .from('players')
-        .select('id, name')
-        .in('id', hostPlayerIds);
-
-      const playerMap = Object.fromEntries(
-        ((playersData ?? []) as { id: string; name: string }[]).map(p => [p.id, p.name])
-      );
-
-      const result: ActiveGame[] = games.map(game => {
-        const playerId = localStorage.getItem(`player_${game.room_code}`);
-        return {
-          game,
-          isHost: playerId === game.host_player_id,
-          hostName: game.host_player_id ? (playerMap[game.host_player_id] ?? '') : '',
-        };
-      });
-
-      setActiveGames(result);
+        const playerId = localStorage.getItem(`player_${entry.roomCode}`);
+        let hostName = '';
+        if (game.host_player_id) {
+          const hostSnap = await getDoc(doc(db, 'games', entry.roomCode, 'players', game.host_player_id));
+          if (hostSnap.exists()) hostName = (hostSnap.data() as { name: string }).name;
+        }
+        results.push({ game, isHost: playerId === game.host_player_id, hostName });
+      }
+      setActiveGames(results);
     }
     loadActiveGames();
-  }, [supabase]);
+  }, []);
 
   function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -78,13 +65,11 @@ export default function HomeClient() {
 
   return (
     <main className="min-h-screen p-4 pt-8 pb-16">
-      {/* ヘッダー */}
       <div className="flex flex-col items-center mb-6">
         <Logo size="md" />
       </div>
 
       <div className="space-y-3">
-        {/* 開催中のゲーム */}
         {activeGames.length > 0 && (
           <div className="card-casino !p-3">
             <p className="text-[#d4af37] font-semibold text-sm mb-2">開催中のゲーム</p>
@@ -121,7 +106,6 @@ export default function HomeClient() {
           </div>
         )}
 
-        {/* 新規作成 */}
         <button
           onClick={() => router.push('/game/new')}
           className="btn-gold w-full py-3 text-base"
@@ -129,7 +113,6 @@ export default function HomeClient() {
           新しいゲームを作成
         </button>
 
-        {/* ルームコード参加 */}
         <div className="card-casino !p-3">
           <p className="text-[#d4af37] font-semibold text-sm mb-2 text-center">ルームコードで参加</p>
           <form onSubmit={handleJoin} className="flex gap-2">
@@ -155,13 +138,9 @@ export default function HomeClient() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center gap-8 pt-4 pb-8">
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4 pb-8">
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           ゲーム履歴
-        </button>
-        <span className="text-green-900">|</span>
-        <button onClick={() => router.push('/chips')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
-          チップ管理
         </button>
       </div>
     </main>

@@ -27,6 +27,9 @@ export interface ChipTemplate {
   chip_type: ChipType;
   default_point_value: number;
   image_url: string | null;
+  image_scale: number | null;
+  image_offset_y: number | null;
+  condition: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -39,6 +42,9 @@ export interface ChipDefinition {
   chip_type: ChipType;
   point_value: number;
   image_url: string | null;
+  image_scale: number | null;
+  image_offset_y: number | null;
+  condition: string | null;
   chip_template_id: string | null;
   is_default: boolean;
   is_active: boolean;

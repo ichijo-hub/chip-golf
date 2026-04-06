@@ -1,9 +1,9 @@
-'use client';
+import { checkAdminSession } from './actions';
+import AdminLogin from './AdminLogin';
+import ChipsTemplatePage from './ChipsTemplatePage';
 
-import dynamic from 'next/dynamic';
-
-const ChipsTemplateClient = dynamic(() => import('./ChipsTemplateClient'), { ssr: false });
-
-export default function Page() {
-  return <ChipsTemplateClient />;
+export default async function Page() {
+  const isAdmin = await checkAdminSession();
+  if (!isAdmin) return <AdminLogin />;
+  return <ChipsTemplatePage />;
 }

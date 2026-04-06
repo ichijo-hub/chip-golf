@@ -2,42 +2,53 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import {
+  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch,
+  orderBy, query, serverTimestamp,
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase/client';
 import { ChipTemplate, ChipType } from '@/types';
+import { DEFAULT_CHIPS } from '@/lib/defaultChips';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 
 interface EditingTemplate {
-  id: string | null; // null = 新規作成
+  id: string | null;
   name: string;
   chip_type: ChipType;
   default_point_value: number;
   image_url: string | null;
+  image_scale: number;
+  image_offset_y: number;
+  condition: string;
   is_active: boolean;
   previewUrl: string | null;
   pendingFile: File | null;
 }
 
 function emptyEdit(chipType: ChipType = 'positive'): EditingTemplate {
-  return { id: null, name: '', chip_type: chipType, default_point_value: 1, image_url: null, is_active: true, previewUrl: null, pendingFile: null };
+  return { id: null, name: '', chip_type: chipType, default_point_value: 1, image_url: null, image_scale: 1.5, image_offset_y: 40, condition: '', is_active: true, previewUrl: null, pendingFile: null };
 }
 
 export default function ChipsTemplateClient() {
   const router = useRouter();
-  const supabase = useRef(createClient()).current;
 
   const [templates, setTemplates] = useState<ChipTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingTemplate | null>(null);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState('');
+  const seedingRef = useRef(false);
 
   const loadData = useCallback(async () => {
-    const { data } = await supabase
-      .from('chip_templates').select('*').order('sort_order');
-    setTemplates((data ?? []) as ChipTemplate[]);
+    const q = query(collection(db, 'chip_templates'), orderBy('sort_order'));
+    const snap = await getDocs(q);
+    const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipTemplate));
+    setTemplates(data);
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -50,7 +61,8 @@ export default function ChipsTemplateClient() {
     setEditing({
       id: t.id, name: t.name, chip_type: t.chip_type,
       default_point_value: t.default_point_value,
-      image_url: t.image_url, is_active: t.is_active ?? true,
+      image_url: t.image_url, image_scale: t.image_scale ?? 1.5, image_offset_y: t.image_offset_y ?? 40,
+      condition: t.condition ?? '', is_active: t.is_active ?? true,
       previewUrl: t.image_url, pendingFile: null,
     });
     setError('');
@@ -67,11 +79,14 @@ export default function ChipsTemplateClient() {
   async function uploadImage(templateId: string, file: File): Promise<string | null> {
     const ext = file.name.split('.').pop() ?? 'jpg';
     const path = `templates/${templateId}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from('chip-images').upload(path, file, { upsert: true, contentType: file.type });
-    if (upErr) { setError(`アップロード失敗: ${upErr.message}`); return null; }
-    const { data } = supabase.storage.from('chip-images').getPublicUrl(path);
-    return data.publicUrl;
+    const storageRef = ref(storage, path);
+    try {
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      return await getDownloadURL(storageRef);
+    } catch (e: unknown) {
+      setError(`アップロード失敗: ${e instanceof Error ? e.message : String(e)}`);
+      return null;
+    }
   }
 
   async function handleSave() {
@@ -81,31 +96,38 @@ export default function ChipsTemplateClient() {
     setError('');
 
     if (editing.id === null) {
-      // 新規作成
       const maxOrder = templates.length > 0 ? Math.max(...templates.map(t => t.sort_order)) + 1 : 0;
-      const { data: newT, error: insErr } = await supabase
-        .from('chip_templates')
-        .insert({ name: editing.name.trim(), chip_type: editing.chip_type, default_point_value: editing.default_point_value, sort_order: maxOrder })
-        .select().single();
-      if (insErr || !newT) { setError('作成に失敗しました'); setSaving(false); return; }
-      const t = newT as ChipTemplate;
+      const newRef = await addDoc(collection(db, 'chip_templates'), {
+        name: editing.name.trim(),
+        chip_type: editing.chip_type,
+        default_point_value: editing.default_point_value,
+        image_url: null,
+        image_scale: editing.image_scale,
+        image_offset_y: editing.image_offset_y,
+        condition: editing.condition.trim() || null,
+        is_active: true,
+        sort_order: maxOrder,
+        created_at: serverTimestamp(),
+      });
       if (editing.pendingFile) {
-        const url = await uploadImage(t.id, editing.pendingFile);
-        if (url) await supabase.from('chip_templates').update({ image_url: url }).eq('id', t.id);
+        const url = await uploadImage(newRef.id, editing.pendingFile);
+        if (url) await updateDoc(newRef, { image_url: url });
       }
     } else {
-      // 更新
       let imageUrl = editing.image_url;
       if (editing.pendingFile) {
         imageUrl = await uploadImage(editing.id, editing.pendingFile);
         if (imageUrl === null) { setSaving(false); return; }
       }
-      await supabase.from('chip_templates').update({
+      await updateDoc(doc(db, 'chip_templates', editing.id), {
         name: editing.name.trim(),
         default_point_value: editing.default_point_value,
         image_url: imageUrl,
+        image_scale: editing.image_scale,
+        image_offset_y: editing.image_offset_y,
+        condition: editing.condition.trim() || null,
         is_active: editing.is_active,
-      }).eq('id', editing.id);
+      });
     }
 
     setSaving(false);
@@ -113,10 +135,44 @@ export default function ChipsTemplateClient() {
     loadData();
   }
 
+  async function handleSeedDefaults() {
+    if (seedingRef.current) return;
+    seedingRef.current = true;
+    setSeeding(true);
+    const existingNames = new Set(templates.map(t => t.name));
+    const toInsert = DEFAULT_CHIPS.filter(c => !existingNames.has(c.name));
+    if (toInsert.length > 0) {
+      const batch = writeBatch(db);
+      toInsert.forEach(c => {
+        const newRef = doc(collection(db, 'chip_templates'));
+        batch.set(newRef, {
+          name: c.name,
+          chip_type: c.chip_type,
+          default_point_value: c.point_value,
+          sort_order: c.sort_order,
+          is_active: true,
+          image_url: c.image_url ?? null,
+          image_scale: c.image_scale ?? null,
+          image_offset_y: c.image_offset_y ?? null,
+          condition: c.condition ?? null,
+          created_at: serverTimestamp(),
+        });
+      });
+      try {
+        await batch.commit();
+      } catch (e: unknown) {
+        setError(`追加失敗: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    setSeeding(false);
+    seedingRef.current = false;
+    loadData();
+  }
+
   async function handleDelete() {
     if (!editing?.id) return;
     if (!confirm(`「${editing.name}」を削除しますか？\n既存ゲームのチップには影響しません。`)) return;
-    await supabase.from('chip_templates').delete().eq('id', editing.id);
+    await deleteDoc(doc(db, 'chip_templates', editing.id));
     setEditing(null);
     loadData();
   }
@@ -125,8 +181,8 @@ export default function ChipsTemplateClient() {
     return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
   }
 
-  const positiveTemplates = templates.filter(t => t.chip_type === 'positive' && t.is_active !== false);
-  const negativeTemplates = templates.filter(t => t.chip_type === 'negative' && t.is_active !== false);
+  const positiveTemplates = templates.filter(t => t.chip_type === 'positive' && t.is_active !== false).sort((a, b) => b.default_point_value - a.default_point_value);
+  const negativeTemplates = templates.filter(t => t.chip_type === 'negative' && t.is_active !== false).sort((a, b) => b.default_point_value - a.default_point_value);
   const disabledTemplates = templates.filter(t => t.is_active === false);
 
   return (
@@ -142,7 +198,7 @@ export default function ChipsTemplateClient() {
             </div>
 
             <div className="flex justify-center mb-4">
-              <ChipBadge name={editing.name || '?'} chipType={editing.chip_type} imageUrl={editing.previewUrl} size={120} />
+              <ChipBadge name={editing.name || '?'} chipType={editing.chip_type} imageUrl={editing.previewUrl} imageScale={editing.image_scale} imageOffsetY={editing.image_offset_y} size={120} />
             </div>
 
             <div className="space-y-3">
@@ -152,6 +208,14 @@ export default function ChipsTemplateClient() {
                 placeholder="チップ名" maxLength={20}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
+              />
+
+              <textarea
+                value={editing.condition}
+                onChange={e => setEditing({ ...editing, condition: e.target.value })}
+                placeholder="獲得条件（任意）" maxLength={100} rows={2}
+                className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
+                           text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm resize-none"
               />
 
               <div>
@@ -186,6 +250,32 @@ export default function ChipsTemplateClient() {
                 </label>
                 <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">⚠️ JPG / PNG / WebP、2MB以下</p>
               </div>
+
+              {editing.previewUrl && (
+                <div className="space-y-2 border border-green-800 rounded-lg px-3 py-3">
+                  <p className="text-green-400 text-xs font-semibold">画像の表示調整</p>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-green-500 text-xs">拡大率</label>
+                      <span className="text-green-300 text-xs">{editing.image_scale.toFixed(1)}x</span>
+                    </div>
+                    <input type="range" min="1.0" max="3.0" step="0.1"
+                      value={editing.image_scale}
+                      onChange={e => setEditing({ ...editing, image_scale: parseFloat(e.target.value) })}
+                      className="w-full accent-[#d4af37]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-green-500 text-xs">縦位置（上↑ 下↓）</label>
+                      <span className="text-green-300 text-xs">{editing.image_offset_y}%</span>
+                    </div>
+                    <input type="range" min="0" max="100" step="1"
+                      value={editing.image_offset_y}
+                      onChange={e => setEditing({ ...editing, image_offset_y: parseInt(e.target.value) })}
+                      className="w-full accent-[#d4af37]" />
+                  </div>
+                </div>
+              )}
 
               {editing.id && (
                 <div className="flex items-center justify-between py-2 border-t border-green-800">
@@ -233,7 +323,18 @@ export default function ChipsTemplateClient() {
           </div>
         </div>
         <div className="max-w-md mx-auto p-4">
-          <p className="text-green-500 text-sm mb-6">ここで管理したチップがゲーム作成時に使えるようになります</p>
+          <p className="text-green-500 text-sm mb-4">ここで管理したチップがゲーム作成時に使えるようになります</p>
+
+          {templates.length === 0 && (
+            <div className="card-casino mb-6 border border-amber-700 bg-amber-950/30">
+              <p className="text-amber-300 font-semibold mb-1">チップが登録されていません</p>
+              <p className="text-amber-600 text-sm mb-3">デフォルトチップ（バーディー・OBなど12枚）を一括追加できます</p>
+              <button onClick={handleSeedDefaults} disabled={seeding}
+                className="btn-gold w-full py-3">
+                {seeding ? '追加中...' : 'デフォルトチップを追加する'}
+              </button>
+            </div>
+          )}
 
           <div className="card-casino mb-4">
             <div className="flex items-center justify-between mb-3">
@@ -297,13 +398,16 @@ function TemplateRow({ template, onEdit, disabled }: { template: ChipTemplate; o
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
       <div onClick={onEdit} className="cursor-pointer">
-        <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} size={64} />
+        <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} imageScale={template.image_scale ?? undefined} imageOffsetY={template.image_offset_y ?? undefined} size={64} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${disabled ? 'text-gray-500' : 'text-white'}`}>{template.name}</p>
         <p className={`text-xs ${disabled ? 'text-gray-600' : isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{template.default_point_value} pt（デフォルト）
         </p>
+        {template.condition && (
+          <p className="text-xs text-green-700 truncate mt-0.5">{template.condition}</p>
+        )}
       </div>
       <button onClick={onEdit} className="text-sm text-gray-500 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">
         {disabled ? '管理' : '編集'}

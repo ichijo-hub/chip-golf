@@ -6,6 +6,8 @@ interface ChipBadgeProps {
   name: string;
   chipType: ChipType;
   imageUrl?: string | null;
+  imageScale?: number | null;
+  imageOffsetY?: number | null;
   pointValue?: number;
   size?: number; // px（デフォルト64）
   flash?: boolean;
@@ -18,6 +20,8 @@ export default function ChipBadge({
   name,
   chipType,
   imageUrl,
+  imageScale,
+  imageOffsetY,
   pointValue,
   size = 64,
   flash = false,
@@ -33,7 +37,7 @@ export default function ChipBadge({
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      style={{ width: size, height: size, minWidth: size }}
+      style={{ width: size, height: size, minWidth: size, ...(imageUrl ? { background: 'transparent', border: `2px solid ${isPositive ? '#d4af37' : '#ef4444'}`, boxShadow: 'none' } : {}) }}
       className={[
         'chip-badge',
         isPositive ? 'chip-positive' : 'chip-negative',
@@ -46,7 +50,7 @@ export default function ChipBadge({
         <img
           src={imageUrl}
           alt={name}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', transform: `scale(${imageScale ?? 1.5})`, transformOrigin: `center ${imageOffsetY ?? 40}%` }}
         />
       )}
       {/* 内側の装飾リング */}
@@ -71,7 +75,7 @@ export default function ChipBadge({
         textAlign: 'center',
         lineHeight: 1.2,
         maxWidth: size + 8,
-        wordBreak: 'break-word',
+        whiteSpace: 'nowrap',
         marginTop: 3,
         pointerEvents: 'none',
       }}

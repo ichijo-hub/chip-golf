@@ -1,72 +1,108 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import {
+  doc, setDoc, updateDoc, collection, getDocs, writeBatch,
+  query, orderBy, serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
 import { generateRoomCode } from '@/lib/roomCode';
-import { Game, Player, ChipTemplate, ChipDefinition } from '@/types';
+import { ChipTemplate } from '@/types';
 import { saveToHistory } from '@/lib/gameHistory';
+import { DEFAULT_CHIPS } from '@/lib/defaultChips';
 
 export default function NewGameClient() {
   const router = useRouter();
-  const supabase = useRef(createClient()).current;
   const [hostName, setHostName] = useState('');
   const [templates, setTemplates] = useState<ChipTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const seeding = useRef(false);
 
   const loadTemplates = useCallback(async () => {
-    const { data } = await supabase.from('chip_templates').select('*').eq('is_active', true).order('sort_order');
-    setTemplates((data ?? []) as ChipTemplate[]);
-  }, [supabase]);
+    const q = query(collection(db, 'chip_templates'), orderBy('sort_order'));
+    const snap = await getDocs(q);
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipTemplate));
+    const active = all.filter(t => t.is_active !== false);
+    if (active.length === 0) {
+      if (seeding.current) return;
+      seeding.current = true;
+      const existingNames = new Set(all.map(t => t.name));
+      const toInsert = DEFAULT_CHIPS.filter(c => !existingNames.has(c.name));
+      if (toInsert.length > 0) {
+        const batch = writeBatch(db);
+        toInsert.forEach(c => {
+          const ref = doc(collection(db, 'chip_templates'));
+          batch.set(ref, {
+            name: c.name, chip_type: c.chip_type,
+            default_point_value: c.point_value, sort_order: c.sort_order,
+            is_active: true, image_url: c.image_url ?? null, created_at: serverTimestamp(),
+          });
+        });
+        await batch.commit();
+      }
+      const snap2 = await getDocs(query(collection(db, 'chip_templates'), orderBy('sort_order')));
+      setTemplates(snap2.docs.map(d => ({ id: d.id, ...d.data() } as ChipTemplate)).filter(t => t.is_active !== false));
+    } else {
+      setTemplates(active);
+    }
+  }, []);
 
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!hostName.trim()) { setError('ホスト名を入力してください'); return; }
-    if (templates.length === 0) { setError('使用できるチップがありません。チップ管理からチップを追加してください。'); return; }
+    if (templates.length === 0) { setError('チップの読み込みに失敗しました。ページを再読み込みしてください。'); return; }
     setLoading(true);
     setError('');
 
     try {
       const roomCode = generateRoomCode();
-      const { data: game, error: gameError } = await supabase
-        .from('games').insert({ room_code: roomCode, status: 'lobby' }).select().single();
-      if (gameError || !game) throw gameError ?? new Error('ゲーム作成失敗');
-      const typedGame = game as Game;
+      const batch = writeBatch(db);
 
-      const { data: player, error: playerError } = await supabase
-        .from('players').insert({ game_id: typedGame.id, name: hostName.trim(), display_order: 0, is_host: true })
-        .select().single();
-      if (playerError || !player) throw playerError ?? new Error('プレイヤー作成失敗');
-      const typedPlayer = player as Player;
+      // Game document (room_code as ID)
+      const gameRef = doc(db, 'games', roomCode);
+      batch.set(gameRef, {
+        id: roomCode, room_code: roomCode, status: 'lobby',
+        host_player_id: null, total_holes: 9, current_hole: 1,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      });
 
-      await supabase.from('games').update({ host_player_id: typedPlayer.id }).eq('id', typedGame.id);
+      // Host player
+      const playerRef = doc(collection(db, 'games', roomCode, 'players'));
+      const playerId = playerRef.id;
+      batch.set(playerRef, {
+        id: playerId, game_id: roomCode, name: hostName.trim(),
+        display_order: 0, is_host: true, created_at: new Date().toISOString(),
+      });
 
-      const chipInserts = templates.map((t, i) => ({
-        game_id: typedGame.id,
-        chip_template_id: t.id,
-        name: t.name,
-        chip_type: t.chip_type,
-        point_value: t.default_point_value,
-        image_url: t.image_url,
-        is_default: true,
-        is_active: true,
-        sort_order: i,
-      }));
+      // chip_definitions + chip_states
+      templates.forEach((t, i) => {
+        const chipDefRef = doc(collection(db, 'games', roomCode, 'chip_definitions'));
+        batch.set(chipDefRef, {
+          id: chipDefRef.id, game_id: roomCode,
+          chip_template_id: t.id, name: t.name, chip_type: t.chip_type,
+          point_value: t.default_point_value, image_url: t.image_url ?? null,
+          image_scale: t.image_scale ?? null, image_offset_y: t.image_offset_y ?? null,
+          condition: t.condition ?? null,
+          is_default: true, is_active: true, sort_order: i,
+        });
+        const chipStateRef = doc(collection(db, 'games', roomCode, 'chip_states'));
+        batch.set(chipStateRef, {
+          id: chipStateRef.id, game_id: roomCode,
+          chip_definition_id: chipDefRef.id, holder_player_id: null,
+          updated_at: new Date().toISOString(),
+        });
+      });
 
-      const { data: chipDefs, error: chipDefError } = await supabase
-        .from('chip_definitions').insert(chipInserts).select();
-      if (chipDefError || !chipDefs) throw chipDefError ?? new Error('チップ定義作成失敗');
+      await batch.commit();
 
-      const chipStateInserts = (chipDefs as ChipDefinition[]).map(cd => ({
-        game_id: typedGame.id, chip_definition_id: cd.id, holder_player_id: null,
-      }));
-      const { error: chipStateError } = await supabase.from('chip_states').insert(chipStateInserts);
-      if (chipStateError) throw chipStateError;
+      // Update host_player_id after batch (batch can't read generated IDs)
+      await updateDoc(gameRef, { host_player_id: playerId });
 
-      localStorage.setItem(`player_${roomCode}`, typedPlayer.id);
+      localStorage.setItem(`player_${roomCode}`, playerId);
       saveToHistory(roomCode);
       router.push(`/game/${roomCode}/lobby`);
     } catch (err) {
