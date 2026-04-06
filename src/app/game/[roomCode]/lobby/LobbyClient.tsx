@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  doc, getDoc, collection, getDocs, addDoc, updateDoc,
-  onSnapshot, query, orderBy,
+  doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, orderBy, writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
@@ -98,6 +98,21 @@ export default function LobbyClient() {
   async function handleStartGame() {
     await updateDoc(doc(db, 'games', roomCode), { status: 'playing' });
     router.push(`/game/${roomCode}/play`);
+  }
+
+  async function handleDeleteGame() {
+    if (!confirm('このゲームを削除しますか？参加者全員のゲームが終了します。')) return;
+    const batch = writeBatch(db);
+    const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
+      getDocs(collection(db, 'games', roomCode, 'players')),
+      getDocs(collection(db, 'games', roomCode, 'chip_definitions')),
+      getDocs(collection(db, 'games', roomCode, 'chip_states')),
+      getDocs(collection(db, 'games', roomCode, 'game_events')),
+    ]);
+    [...playersSnap.docs, ...chipDefsSnap.docs, ...chipStatesSnap.docs, ...eventsSnap.docs].forEach(d => batch.delete(d.ref));
+    batch.delete(doc(db, 'games', roomCode));
+    await batch.commit();
+    router.push('/');
   }
 
   function copyRoomCode() {
@@ -212,6 +227,13 @@ export default function LobbyClient() {
               className="btn-gold w-full text-lg py-4"
             >
               {players.length < 2 ? 'あと1人以上参加が必要です' : 'ゲームを開始する'}
+            </button>
+            <button
+              onClick={handleDeleteGame}
+              className="w-full py-3 rounded-lg border border-red-800 text-red-500
+                         hover:border-red-600 hover:text-red-400 transition-colors text-sm"
+            >
+              ゲームを削除する
             </button>
           </div>
         )}
