@@ -11,6 +11,7 @@ import { db, storage } from '@/lib/firebase/client';
 import { Game, ChipDefinition, ChipType } from '@/types';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
+import { chipNamesEn } from '@/lib/i18n/chipNames';
 
 interface EditingChip {
   id: string;
@@ -357,6 +358,8 @@ export default function ChipsManageClient() {
 }
 
 function ChipRow({ chip, onEdit, onToggle, t }: { chip: ChipDefinition; onEdit: () => void; onToggle: () => void; t: ReturnType<typeof useT>['t'] }) {
+  const { locale } = useT();
+  const displayName = locale === 'en' ? (chipNamesEn[chip.name] ?? chip.name) : chip.name;
   const isPos = chip.chip_type === 'positive';
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#145a32]' : 'bg-[#0b2e1c] opacity-60'}`}>
@@ -364,7 +367,7 @@ function ChipRow({ chip, onEdit, onToggle, t }: { chip: ChipDefinition; onEdit: 
         <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} imageScale={chip.image_scale ?? undefined} imageOffsetY={chip.image_offset_y ?? undefined} size={64} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{chip.name}</p>
+        <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{displayName}</p>
         <p className={`text-xs ${isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{chip.point_value} pt
         </p>

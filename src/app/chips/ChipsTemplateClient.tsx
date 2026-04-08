@@ -13,6 +13,7 @@ import { DEFAULT_CHIPS } from '@/lib/defaultChips';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
+import { chipNamesEn } from '@/lib/i18n/chipNames';
 
 interface EditingTemplate {
   id: string | null;
@@ -396,6 +397,8 @@ export default function ChipsTemplateClient() {
 }
 
 function TemplateRow({ template, onEdit, disabled, tl }: { template: ChipTemplate; onEdit: () => void; disabled?: boolean; tl: ReturnType<typeof useT>['t'] }) {
+  const { locale } = useT();
+  const displayName = locale === 'en' ? (chipNamesEn[template.name] ?? template.name) : template.name;
   const isPos = template.chip_type === 'positive';
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
@@ -403,7 +406,7 @@ function TemplateRow({ template, onEdit, disabled, tl }: { template: ChipTemplat
         <ChipBadge name={template.name} chipType={template.chip_type} imageUrl={template.image_url} imageScale={template.image_scale ?? undefined} imageOffsetY={template.image_offset_y ?? undefined} size={64} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-medium truncate ${disabled ? 'text-gray-500' : 'text-white'}`}>{template.name}</p>
+        <p className={`font-medium truncate ${disabled ? 'text-gray-500' : 'text-white'}`}>{displayName}</p>
         <p className={`text-xs ${disabled ? 'text-gray-600' : isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{template.default_point_value} pt（デフォルト）
         </p>

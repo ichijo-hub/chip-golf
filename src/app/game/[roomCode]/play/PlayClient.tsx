@@ -12,6 +12,7 @@ import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
+import { chipNamesEn } from '@/lib/i18n/chipNames';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -23,7 +24,7 @@ export default function PlayClient() {
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
 
-  const { t } = useT();
+  const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [chipDefs, setChipDefs] = useState<ChipDefinition[]>([]);
@@ -185,7 +186,7 @@ export default function PlayClient() {
                   showLabel={false}
                 />
                 <div>
-                  <p className="text-[#d4af37] font-bold text-xl">{selected.chipDef.name}</p>
+                  <p className="text-[#d4af37] font-bold text-xl">{locale === 'en' ? (chipNamesEn[selected.chipDef.name] ?? selected.chipDef.name) : selected.chipDef.name}</p>
                   <p className={`text-base font-medium ${selected.chipDef.chip_type === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
                     {selected.chipDef.chip_type === 'positive' ? `+${selected.chipDef.point_value} ${t.common.positive}` : `-${selected.chipDef.point_value} ${t.common.negative}`}
                   </p>

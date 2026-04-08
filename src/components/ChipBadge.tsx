@@ -1,6 +1,8 @@
 'use client';
 
 import { ChipType } from '@/types';
+import { useT } from '@/lib/i18n';
+import { chipNamesEn } from '@/lib/i18n/chipNames';
 
 interface ChipBadgeProps {
   name: string;
@@ -29,6 +31,8 @@ export default function ChipBadge({
   onClick,
   className = '',
 }: ChipBadgeProps) {
+  const { locale } = useT();
+  const displayName = locale === 'en' ? (chipNamesEn[name] ?? name) : name;
   const isPositive = chipType === 'positive';
   const fontSize = size <= 44 ? '8px' : size <= 56 ? '10px' : '11px';
   const Tag = (onClick ? 'button' : 'div') as React.ElementType;
@@ -49,7 +53,7 @@ export default function ChipBadge({
       {imageUrl && (
         <img
           src={imageUrl}
-          alt={name}
+          alt={displayName}
           style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', transform: `scale(${imageScale ?? 1.5})`, transformOrigin: `center ${imageOffsetY ?? 40}%` }}
         />
       )}
@@ -80,7 +84,7 @@ export default function ChipBadge({
         pointerEvents: 'none',
       }}
     >
-      {name}
+      {displayName}
     </span>
   );
 
