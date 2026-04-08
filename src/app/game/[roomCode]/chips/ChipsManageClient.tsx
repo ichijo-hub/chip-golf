@@ -33,7 +33,7 @@ export default function ChipsManageClient() {
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
 
-  const { t } = useT();
+  const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
   const [chips, setChips] = useState<ChipDefinition[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,7 +196,7 @@ export default function ChipsManageClient() {
               )}
 
               <textarea
-                value={editing.condition}
+                value={locale === 'en' ? (chipConditionsEn[editing.condition] ?? editing.condition) : editing.condition}
                 onChange={e => setEditing({ ...editing, condition: e.target.value })}
                 placeholder={t.common.condition} maxLength={100} rows={2}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3

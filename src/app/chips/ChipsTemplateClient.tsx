@@ -36,7 +36,7 @@ function emptyEdit(chipType: ChipType = 'positive'): EditingTemplate {
 export default function ChipsTemplateClient() {
   const router = useRouter();
 
-  const { t } = useT();
+  const { t, locale } = useT();
   const [templates, setTemplates] = useState<ChipTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingTemplate | null>(null);
@@ -214,7 +214,7 @@ export default function ChipsTemplateClient() {
               />
 
               <textarea
-                value={editing.condition}
+                value={locale === 'en' ? (chipConditionsEn[editing.condition] ?? editing.condition) : editing.condition}
                 onChange={e => setEditing({ ...editing, condition: e.target.value })}
                 placeholder={t.common.condition} maxLength={100} rows={2}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
