@@ -10,6 +10,7 @@ import { loadHistory } from '@/lib/gameHistory';
 import { calculateScores } from '@/lib/scoring';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
 import Logo from '@/components/Logo';
+import { useT } from '@/lib/i18n';
 
 interface GameSummary {
   game: Game;
@@ -19,16 +20,12 @@ interface GameSummary {
   joinedAt: string;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  lobby: '待機中',
-  playing: '進行中',
-  finished: '終了',
-};
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function HistoryClient() {
   const router = useRouter();
+  const { t } = useT();
   const [summaries, setSummaries] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -69,8 +66,14 @@ export default function HistoryClient() {
     load();
   }, []);
 
+  const statusLabel = (status: string) => ({
+    lobby: t.history.waiting,
+    playing: t.history.playing,
+    finished: t.history.finished,
+  }[status] ?? status);
+
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
+    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
   }
 
   return (
@@ -78,14 +81,14 @@ export default function HistoryClient() {
       <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
         <div className="max-w-md mx-auto flex items-center justify-between">
           <button onClick={() => router.push('/')}><Logo size="sm" /></button>
-          <p className="text-[#d4af37] font-bold text-sm">ゲーム履歴</p>
+          <p className="text-[#d4af37] font-bold text-sm">{t.history.title}</p>
         </div>
       </div>
       <div className="max-w-md mx-auto p-4">
         {summaries.length === 0 ? (
           <div className="card-casino text-center py-12">
             <p className="text-4xl mb-4">⛳</p>
-            <p className="text-green-500">まだ参加したゲームがありません</p>
+            <p className="text-green-500">{t.history.noGames}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -99,12 +102,12 @@ export default function HistoryClient() {
                         ${game.status === 'finished' ? 'bg-green-900 text-green-300' :
                           game.status === 'playing' ? 'bg-yellow-900 text-yellow-300' :
                           'bg-gray-800 text-gray-400'}`}>
-                        {STATUS_LABEL[game.status]}
+                        {statusLabel(game.status)}
                       </span>
                     </div>
                     <p className="text-green-600 text-xs mt-1">
-                      {new Date(joinedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      　{players.length}人参加
+                      {new Date(joinedAt).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      　{t.history.participants.replace('{{count}}', String(players.length))}
                     </p>
                   </div>
                   <button
@@ -115,7 +118,7 @@ export default function HistoryClient() {
                     )}
                     className="text-sm text-green-400 hover:text-[#d4af37] transition-colors shrink-0"
                   >
-                    {game.status === 'finished' ? '結果を見る' : '参加する'} →
+                    {game.status === 'finished' ? t.history.viewResult : t.history.join} →
                   </button>
                 </div>
                 {netScores.length > 0 && (

@@ -10,12 +10,14 @@ import {
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
 import { Game, Player } from '@/types';
+import { useT } from '@/lib/i18n';
 
 export default function LobbyClient() {
   const params = useParams();
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
 
+  const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function LobbyClient() {
   const loadGame = useCallback(async () => {
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
     if (!gameSnap.exists()) {
-      setError('ゲームが見つかりません。ルームコードを確認してください。');
+      setError(t.lobby.gameNotFound);
       setLoading(false);
       return;
     }
@@ -89,7 +91,7 @@ export default function LobbyClient() {
       saveToHistory(roomCode);
       setMyPlayerId(playerRef.id);
     } catch (err: unknown) {
-      setError(`参加に失敗しました: ${err instanceof Error ? err.message : '不明なエラー'}`);
+      setError(t.lobby.joinError.replace('{{error}}', err instanceof Error ? err.message : String(err)));
     } finally {
       setJoining(false);
     }
@@ -101,7 +103,7 @@ export default function LobbyClient() {
   }
 
   async function handleDeleteGame() {
-    if (!confirm('このゲームを削除しますか？参加者全員のゲームが終了します。')) return;
+    if (!confirm(t.lobby.confirmDelete)) return;
     const batch = writeBatch(db);
     const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
       getDocs(collection(db, 'games', roomCode, 'players')),
@@ -127,7 +129,7 @@ export default function LobbyClient() {
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <p className="text-green-400">読み込み中...</p>
+        <p className="text-green-400">{t.common.loading}</p>
       </main>
     );
   }
@@ -136,7 +138,7 @@ export default function LobbyClient() {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
         <p className="text-red-400 text-center">{error}</p>
-        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">トップに戻る</button>
+        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">{t.common.backToTop}</button>
       </main>
     );
   }
@@ -146,26 +148,26 @@ export default function LobbyClient() {
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6 pt-4">
           <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">
-            ← トップ
+            {t.lobby.backToTop}
           </button>
-          <h1 className="text-2xl font-bold text-[#d4af37]">待機ルーム</h1>
+          <h1 className="text-2xl font-bold text-[#d4af37]">{t.lobby.title}</h1>
         </div>
 
         <div className="card-casino text-center mb-4">
-          <p className="text-green-400 text-sm mb-2">ルームコード</p>
+          <p className="text-green-400 text-sm mb-2">{t.lobby.roomCode}</p>
           <div className="flex items-center justify-center gap-3">
             <span className="text-5xl font-mono font-bold text-[#d4af37] tracking-widest">
               {roomCode}
             </span>
             <button onClick={copyRoomCode} className="text-green-400 hover:text-[#d4af37] transition-colors text-sm">
-              {copied ? '✓ コピー済み' : 'コピー'}
+              {copied ? t.lobby.copied : t.lobby.copy}
             </button>
           </div>
         </div>
 
         {lobbyUrl && (
           <div className="card-casino flex flex-col items-center mb-4">
-            <p className="text-green-400 text-sm mb-3">QRコードで参加</p>
+            <p className="text-green-400 text-sm mb-3">{t.lobby.qrCode}</p>
             <div className="bg-white p-3 rounded-lg">
               <QRCodeSVG value={lobbyUrl} size={160} />
             </div>
@@ -174,37 +176,37 @@ export default function LobbyClient() {
 
         {!isJoined && (
           <div className="card-casino mb-4">
-            <p className="text-[#d4af37] font-semibold mb-3">ゲームに参加する</p>
+            <p className="text-[#d4af37] font-semibold mb-3">{t.lobby.joinSection}</p>
             <form onSubmit={handleJoin} className="space-y-3">
               <input
                 type="text" value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="あなたの名前" maxLength={20}
+                placeholder={t.lobby.namePlaceholder} maxLength={20}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
               />
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <button type="submit" disabled={joining} className="btn-gold w-full py-3">
-                {joining ? '参加中...' : '参加する'}
+                {joining ? t.lobby.joining : t.lobby.joinButton}
               </button>
             </form>
           </div>
         )}
 
         <div className="card-casino mb-4">
-          <p className="text-[#d4af37] font-semibold mb-3">参加者 ({players.length}人)</p>
+          <p className="text-[#d4af37] font-semibold mb-3">{t.lobby.playersCount.replace('{{count}}', String(players.length))}</p>
           {players.length === 0 ? (
-            <p className="text-green-600 text-sm text-center py-2">参加者を待っています...</p>
+            <p className="text-green-600 text-sm text-center py-2">{t.lobby.waitingForPlayers}</p>
           ) : (
             <ul className="space-y-2">
               {players.map((p) => (
                 <li key={p.id} className="flex items-center justify-between bg-[#145a32] rounded-lg px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="text-white font-medium">{p.name}</span>
-                    {p.id === myPlayerId && <span className="text-xs text-green-400">（あなた）</span>}
+                    {p.id === myPlayerId && <span className="text-xs text-green-400">{t.common.you}</span>}
                   </div>
                   {p.is_host && (
-                    <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-2 py-0.5 rounded font-semibold">ホスト</span>
+                    <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-2 py-0.5 rounded font-semibold">{t.common.host}</span>
                   )}
                 </li>
               ))}
@@ -219,28 +221,28 @@ export default function LobbyClient() {
               className="w-full py-3 rounded-lg border border-green-700 text-green-300
                          hover:border-[#d4af37] hover:text-[#d4af37] transition-colors text-sm"
             >
-              チップを管理・編集
+              {t.lobby.manageChips}
             </button>
             <button
               onClick={handleStartGame}
               disabled={players.length < 2}
               className="btn-gold w-full text-lg py-4"
             >
-              {players.length < 2 ? 'あと1人以上参加が必要です' : 'ゲームを開始する'}
+              {players.length < 2 ? t.lobby.needMorePlayers : t.lobby.startGame}
             </button>
             <button
               onClick={handleDeleteGame}
               className="w-full py-3 rounded-lg border border-red-800 text-red-500
                          hover:border-red-600 hover:text-red-400 transition-colors text-sm"
             >
-              ゲームを削除する
+              {t.lobby.deleteGame}
             </button>
           </div>
         )}
 
         {isJoined && !isHost && (
           <p className="text-center text-green-500 text-sm">
-            ホストがゲームを開始するまでお待ちください...
+            {t.lobby.waitingForHost}
           </p>
         )}
       </div>

@@ -7,6 +7,8 @@ import { db } from '@/lib/firebase/client';
 import { loadHistory } from '@/lib/gameHistory';
 import { Game } from '@/types';
 import Logo from '@/components/Logo';
+import LangToggle from '@/components/LangToggle';
+import { useT } from '@/lib/i18n';
 
 interface ActiveGame {
   game: Game;
@@ -16,6 +18,7 @@ interface ActiveGame {
 
 export default function HomeClient() {
   const router = useRouter();
+  const { t } = useT();
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
@@ -49,7 +52,7 @@ export default function HomeClient() {
     e.preventDefault();
     const code = roomCode.trim().toUpperCase();
     if (code.length !== 6) {
-      setError('ルームコードは6文字で入力してください');
+      setError(t.home.invalidRoomCode);
       return;
     }
     router.push(`/game/${code}/lobby`);
@@ -65,14 +68,15 @@ export default function HomeClient() {
 
   return (
     <main className="min-h-screen p-4 pt-8 pb-16">
-      <div className="flex flex-col items-center mb-6">
+      <div className="flex flex-col items-center mb-6 relative">
         <Logo size="md" />
+        <div className="absolute right-0 top-0"><LangToggle /></div>
       </div>
 
       <div className="space-y-3">
         {activeGames.length > 0 && (
           <div className="card-casino !p-3">
-            <p className="text-[#d4af37] font-semibold text-sm mb-2">開催中のゲーム</p>
+            <p className="text-[#d4af37] font-semibold text-sm mb-2">{t.home.activeGames}</p>
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {activeGames.map(({ game, isHost, hostName }) => (
                 <button
@@ -88,17 +92,17 @@ export default function HomeClient() {
                       </span>
                       {isHost && (
                         <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">
-                          ホスト
+                          {t.common.host}
                         </span>
                       )}
                     </div>
                     {hostName && (
-                      <p className="text-green-500 text-xs">{hostName} のゲーム</p>
+                      <p className="text-green-500 text-xs">{t.home.gameOf.replace('{{name}}', hostName)}</p>
                     )}
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0
                     ${game.status === 'playing' ? 'bg-yellow-900 text-yellow-300' : 'bg-green-900 text-green-300'}`}>
-                    {game.status === 'playing' ? '進行中' : '待機中'} →
+                    {game.status === 'playing' ? t.home.statusPlaying : t.home.statusWaiting}
                   </span>
                 </button>
               ))}
@@ -110,17 +114,17 @@ export default function HomeClient() {
           onClick={() => router.push('/game/new')}
           className="btn-gold w-full py-3 text-base"
         >
-          新しいゲームを作成
+          {t.home.createGame}
         </button>
 
         <div className="card-casino !p-3">
-          <p className="text-[#d4af37] font-semibold text-sm mb-2 text-center">ルームコードで参加</p>
+          <p className="text-[#d4af37] font-semibold text-sm mb-2 text-center">{t.home.joinWithCode}</p>
           <form onSubmit={handleJoin} className="flex gap-2">
             <input
               type="text"
               value={roomCode}
               onChange={(e) => { setRoomCode(e.target.value.toUpperCase()); setError(''); }}
-              placeholder="ABC123"
+              placeholder={t.home.roomCodePlaceholder}
               maxLength={6}
               className="flex-1 bg-[#145a32] border border-green-700 rounded-lg px-3 py-2.5
                          text-white placeholder-green-600 text-center text-lg font-mono
@@ -131,7 +135,7 @@ export default function HomeClient() {
               className="bg-green-700 hover:bg-green-600 text-white font-semibold
                          px-4 py-2.5 rounded-lg border border-green-600 transition-colors shrink-0"
             >
-              参加
+              {t.home.join}
             </button>
           </form>
           {error && <p className="text-red-400 text-xs mt-1.5 text-center">{error}</p>}
@@ -140,7 +144,7 @@ export default function HomeClient() {
 
       <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4 pb-8">
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
-          ゲーム履歴
+          {t.home.history}
         </button>
       </div>
     </main>

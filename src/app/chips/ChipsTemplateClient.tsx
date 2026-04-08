@@ -12,6 +12,7 @@ import { ChipTemplate, ChipType } from '@/types';
 import { DEFAULT_CHIPS } from '@/lib/defaultChips';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
+import { useT } from '@/lib/i18n';
 
 interface EditingTemplate {
   id: string | null;
@@ -34,6 +35,7 @@ function emptyEdit(chipType: ChipType = 'positive'): EditingTemplate {
 export default function ChipsTemplateClient() {
   const router = useRouter();
 
+  const { t } = useT();
   const [templates, setTemplates] = useState<ChipTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingTemplate | null>(null);
@@ -71,7 +73,7 @@ export default function ChipsTemplateClient() {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !editing) return;
-    if (file.size > 2 * 1024 * 1024) { setError('画像は2MB以下にしてください'); return; }
+    if (file.size > 2 * 1024 * 1024) { setError(t.common.fileTooLarge); return; }
     setEditing({ ...editing, pendingFile: file, previewUrl: URL.createObjectURL(file) });
     setError('');
   }
@@ -84,14 +86,14 @@ export default function ChipsTemplateClient() {
       await uploadBytes(storageRef, file, { contentType: file.type });
       return await getDownloadURL(storageRef);
     } catch (e: unknown) {
-      setError(`アップロード失敗: ${e instanceof Error ? e.message : String(e)}`);
+      setError(t.common.uploadFailed.replace('{{error}}', e instanceof Error ? e.message : String(e)));
       return null;
     }
   }
 
   async function handleSave() {
     if (!editing) return;
-    if (!editing.name.trim()) { setError('チップ名を入力してください'); return; }
+    if (!editing.name.trim()) { setError(t.chipsTemplate.errorEmptyName); return; }
     setSaving(true);
     setError('');
 
@@ -161,7 +163,7 @@ export default function ChipsTemplateClient() {
       try {
         await batch.commit();
       } catch (e: unknown) {
-        setError(`追加失敗: ${e instanceof Error ? e.message : String(e)}`);
+        setError(t.chipsTemplate.errorAdd.replace('{{error}}', e instanceof Error ? e.message : String(e)));
       }
     }
     setSeeding(false);
@@ -171,14 +173,14 @@ export default function ChipsTemplateClient() {
 
   async function handleDelete() {
     if (!editing?.id) return;
-    if (!confirm(`「${editing.name}」を削除しますか？\n既存ゲームのチップには影響しません。`)) return;
+    if (!confirm(t.chipsTemplate.confirmDelete.replace('{{name}}', editing.name))) return;
     await deleteDoc(doc(db, 'chip_templates', editing.id));
     setEditing(null);
     loadData();
   }
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
+    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
   }
 
   const positiveTemplates = templates.filter(t => t.chip_type === 'positive' && t.is_active !== false).sort((a, b) => b.default_point_value - a.default_point_value);
@@ -192,9 +194,9 @@ export default function ChipsTemplateClient() {
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[#d4af37] font-bold text-lg">
-                {editing.id ? 'チップを編集' : 'チップを追加'}
+                {editing.id ? t.chipsTemplate.editTitle : t.chipsTemplate.addTitle}
               </p>
-              <button onClick={() => setEditing(null)} className="text-green-400 text-2xl leading-none">✕</button>
+              <button onClick={() => setEditing(null)} className="text-green-400 text-2xl leading-none">{t.common.close}</button>
             </div>
 
             <div className="flex justify-center mb-4">
@@ -205,7 +207,7 @@ export default function ChipsTemplateClient() {
               <input
                 type="text" value={editing.name}
                 onChange={e => setEditing({ ...editing, name: e.target.value })}
-                placeholder="チップ名" maxLength={20}
+                placeholder={t.common.chipName} maxLength={20}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
               />
@@ -213,13 +215,13 @@ export default function ChipsTemplateClient() {
               <textarea
                 value={editing.condition}
                 onChange={e => setEditing({ ...editing, condition: e.target.value })}
-                placeholder="獲得条件（任意）" maxLength={100} rows={2}
+                placeholder={t.common.condition} maxLength={100} rows={2}
                 className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                            text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37] text-sm resize-none"
               />
 
               <div>
-                <p className="text-green-400 text-sm mb-2">デフォルトポイント値</p>
+                <p className="text-green-400 text-sm mb-2">{t.chipsTemplate.defaultPointValue}</p>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setEditing({ ...editing, default_point_value: Math.max(1, editing.default_point_value - 1) })}
                     className="w-10 h-10 rounded-full bg-[#145a32] border border-green-700 text-white text-xl font-bold
@@ -235,28 +237,28 @@ export default function ChipsTemplateClient() {
               </div>
 
               <div>
-                <p className="text-green-400 text-sm mb-2">チップ画像（任意）</p>
+                <p className="text-green-400 text-sm mb-2">{t.common.chipImage}</p>
                 {editing.previewUrl && (
                   <div className="flex items-center gap-2 mb-2">
                     <img src={editing.previewUrl} alt="preview" className="w-12 h-12 rounded-full object-cover border-2 border-green-700" />
                     <button type="button" onClick={() => setEditing({ ...editing, image_url: null, previewUrl: null, pendingFile: null })}
-                      className="text-red-400 text-sm hover:text-red-300">画像を削除</button>
+                      className="text-red-400 text-sm hover:text-red-300">{t.common.deleteImage}</button>
                   </div>
                 )}
                 <label className="block w-full py-2 px-4 rounded-lg border border-dashed border-green-700
                                   text-green-400 text-sm text-center cursor-pointer hover:border-[#d4af37] hover:text-[#d4af37] transition-colors">
-                  {editing.previewUrl ? '画像を変更' : '画像をアップロード'}
+                  {editing.previewUrl ? t.common.changeImage : t.common.uploadImage}
                   <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
                 </label>
-                <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">⚠️ JPG / PNG / WebP、2MB以下</p>
+                <p className="text-amber-400 text-xs mt-1 flex items-center gap-1">{t.common.imageFormat}</p>
               </div>
 
               {editing.previewUrl && (
                 <div className="space-y-2 border border-green-800 rounded-lg px-3 py-3">
-                  <p className="text-green-400 text-xs font-semibold">画像の表示調整</p>
+                  <p className="text-green-400 text-xs font-semibold">{t.common.imageAdjustment}</p>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-green-500 text-xs">拡大率</label>
+                      <label className="text-green-500 text-xs">{t.common.imageScale}</label>
                       <span className="text-green-300 text-xs">{editing.image_scale.toFixed(1)}x</span>
                     </div>
                     <input type="range" min="1.0" max="3.0" step="0.1"
@@ -266,7 +268,7 @@ export default function ChipsTemplateClient() {
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-green-500 text-xs">縦位置（上↑ 下↓）</label>
+                      <label className="text-green-500 text-xs">{t.common.imageOffsetY}</label>
                       <span className="text-green-300 text-xs">{editing.image_offset_y}%</span>
                     </div>
                     <input type="range" min="0" max="100" step="1"
@@ -280,7 +282,7 @@ export default function ChipsTemplateClient() {
               {editing.id && (
                 <div className="flex items-center justify-between py-2 border-t border-green-800">
                   <span className={`text-sm ${editing.is_active ? 'text-green-400' : 'text-gray-300'}`}>
-                    {editing.is_active ? '有効' : '無効'}
+                    {editing.is_active ? t.common.enabled : t.common.disabled}
                   </span>
                   <button
                     type="button"
@@ -301,12 +303,12 @@ export default function ChipsTemplateClient() {
 
               <div className="flex gap-2">
                 <button onClick={handleSave} disabled={saving} className="btn-gold flex-1 py-3">
-                  {saving ? '保存中...' : '保存'}
+                  {saving ? t.common.saving : t.common.save}
                 </button>
-                {editing.id && templates.find(t => t.id === editing.id)?.is_active === false && (
+                {editing.id && templates.find(tmpl => tmpl.id === editing.id)?.is_active === false && (
                   <button onClick={handleDelete}
                     className="px-4 py-3 rounded-lg bg-red-900 border border-red-700 text-red-300 hover:bg-red-800 transition-colors text-sm">
-                    削除
+                    {t.common.delete}
                   </button>
                 )}
               </div>
@@ -319,37 +321,37 @@ export default function ChipsTemplateClient() {
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 py-2 z-10">
           <div className="max-w-md mx-auto flex items-center justify-between">
             <button onClick={() => router.push('/')}><Logo size="sm" /></button>
-            <p className="text-[#d4af37] font-bold text-sm">チップ管理</p>
+            <p className="text-[#d4af37] font-bold text-sm">{t.chipsTemplate.title}</p>
           </div>
         </div>
         <div className="max-w-md mx-auto p-4">
-          <p className="text-green-500 text-sm mb-4">ここで管理したチップがゲーム作成時に使えるようになります</p>
+          <p className="text-green-500 text-sm mb-4">{t.chipsTemplate.description}</p>
 
           {templates.length === 0 && (
             <div className="card-casino mb-6 border border-amber-700 bg-amber-950/30">
-              <p className="text-amber-300 font-semibold mb-1">チップが登録されていません</p>
-              <p className="text-amber-600 text-sm mb-3">デフォルトチップ（バーディー・OBなど12枚）を一括追加できます</p>
+              <p className="text-amber-300 font-semibold mb-1">{t.chipsTemplate.emptyTitle}</p>
+              <p className="text-amber-600 text-sm mb-3">{t.chipsTemplate.emptyDescription}</p>
               <button onClick={handleSeedDefaults} disabled={seeding}
                 className="btn-gold w-full py-3">
-                {seeding ? '追加中...' : 'デフォルトチップを追加する'}
+                {seeding ? t.chipsTemplate.seeding : t.chipsTemplate.seedButton}
               </button>
             </div>
           )}
 
           <div className="card-casino mb-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-green-400 font-semibold">ポジティブチップ</p>
+              <p className="text-green-400 font-semibold">{t.chipsTemplate.sectionPositive}</p>
               <button onClick={() => openNew('positive')}
                 className="text-sm px-3 py-1 rounded-lg bg-green-800 border border-green-600 text-green-200 hover:bg-green-700 transition-colors">
-                ＋ 追加
+                {t.chipsTemplate.addButton}
               </button>
             </div>
             {positiveTemplates.length === 0 ? (
-              <p className="text-green-700 text-sm">チップがありません</p>
+              <p className="text-green-700 text-sm">{t.chipsTemplate.noChips}</p>
             ) : (
               <div className="space-y-2">
-                {positiveTemplates.map(t => (
-                  <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} />
+                {positiveTemplates.map(tmpl => (
+                  <TemplateRow key={tmpl.id} template={tmpl} onEdit={() => openEdit(tmpl)} tl={t} />
                 ))}
               </div>
             )}
@@ -357,18 +359,18 @@ export default function ChipsTemplateClient() {
 
           <div className="card-casino mb-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-red-400 font-semibold">ネガティブチップ</p>
+              <p className="text-red-400 font-semibold">{t.chipsTemplate.sectionNegative}</p>
               <button onClick={() => openNew('negative')}
                 className="text-sm px-3 py-1 rounded-lg bg-red-900 border border-red-700 text-red-200 hover:bg-red-800 transition-colors">
-                ＋ 追加
+                {t.chipsTemplate.addButton}
               </button>
             </div>
             {negativeTemplates.length === 0 ? (
-              <p className="text-green-700 text-sm">チップがありません</p>
+              <p className="text-green-700 text-sm">{t.chipsTemplate.noChips}</p>
             ) : (
               <div className="space-y-2">
-                {negativeTemplates.map(t => (
-                  <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} />
+                {negativeTemplates.map(tmpl => (
+                  <TemplateRow key={tmpl.id} template={tmpl} onEdit={() => openEdit(tmpl)} tl={t} />
                 ))}
               </div>
             )}
@@ -377,12 +379,12 @@ export default function ChipsTemplateClient() {
           {disabledTemplates.length > 0 && (
             <div className="card-casino mb-4 opacity-60">
               <div className="mb-3">
-                <p className="text-gray-400 font-semibold text-sm">無効なチップ</p>
-                <p className="text-gray-600 text-xs mt-0.5">ゲーム作成時に表示されません</p>
+                <p className="text-gray-400 font-semibold text-sm">{t.chipsTemplate.sectionDisabled}</p>
+                <p className="text-gray-600 text-xs mt-0.5">{t.chipsTemplate.sectionDisabledNote}</p>
               </div>
               <div className="space-y-2">
-                {disabledTemplates.map(t => (
-                  <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} disabled />
+                {disabledTemplates.map(tmpl => (
+                  <TemplateRow key={tmpl.id} template={tmpl} onEdit={() => openEdit(tmpl)} disabled tl={t} />
                 ))}
               </div>
             </div>
@@ -393,7 +395,7 @@ export default function ChipsTemplateClient() {
   );
 }
 
-function TemplateRow({ template, onEdit, disabled }: { template: ChipTemplate; onEdit: () => void; disabled?: boolean }) {
+function TemplateRow({ template, onEdit, disabled, tl }: { template: ChipTemplate; onEdit: () => void; disabled?: boolean; tl: ReturnType<typeof useT>['t'] }) {
   const isPos = template.chip_type === 'positive';
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
@@ -410,7 +412,7 @@ function TemplateRow({ template, onEdit, disabled }: { template: ChipTemplate; o
         )}
       </div>
       <button onClick={onEdit} className="text-sm text-gray-500 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">
-        {disabled ? '管理' : '編集'}
+        {disabled ? tl.chipsTemplate.manage : tl.common.edit}
       </button>
     </div>
   );

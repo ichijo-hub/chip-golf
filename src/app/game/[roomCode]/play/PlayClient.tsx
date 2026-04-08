@@ -11,6 +11,7 @@ import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
 import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
+import { useT } from '@/lib/i18n';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -22,6 +23,7 @@ export default function PlayClient() {
   const router = useRouter();
   const roomCode = (params.roomCode as string).toUpperCase();
 
+  const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [chipDefs, setChipDefs] = useState<ChipDefinition[]>([]);
@@ -37,7 +39,7 @@ export default function PlayClient() {
   const loadData = useCallback(async () => {
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
     if (!gameSnap.exists()) {
-      setError('ゲームが見つかりません');
+      setError(t.play.gameNotFound);
       setLoading(false);
       return;
     }
@@ -135,20 +137,20 @@ export default function PlayClient() {
 
   async function endGame() {
     if (!game) return;
-    if (!confirm('ゲームを終了しますか？')) return;
+    if (!confirm(t.play.confirmEndGame)) return;
     await updateDoc(doc(db, 'games', roomCode), { status: 'finished' });
     router.push(`/game/${roomCode}/result`);
   }
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
+    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
   }
 
   if (error) {
     return (
       <main className="min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="text-red-400">{error}</p>
-        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">トップに戻る</button>
+        <button onClick={() => router.push('/')} className="btn-gold px-6 py-2">{t.common.backToTop}</button>
       </main>
     );
   }
@@ -185,13 +187,13 @@ export default function PlayClient() {
                 <div>
                   <p className="text-[#d4af37] font-bold text-xl">{selected.chipDef.name}</p>
                   <p className={`text-base font-medium ${selected.chipDef.chip_type === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
-                    {selected.chipDef.chip_type === 'positive' ? `+${selected.chipDef.point_value} ポジティブ` : `-${selected.chipDef.point_value} ネガティブ`}
+                    {selected.chipDef.chip_type === 'positive' ? `+${selected.chipDef.point_value} ${t.common.positive}` : `-${selected.chipDef.point_value} ${t.common.negative}`}
                   </p>
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="text-green-400 text-3xl leading-none self-start">✕</button>
             </div>
-            <p className="text-green-300 text-base mb-3">移動先を選択:</p>
+            <p className="text-green-300 text-base mb-3">{t.play.selectDestination}</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {players.map(p => (
                 <button
@@ -205,8 +207,8 @@ export default function PlayClient() {
                     }`}
                 >
                   {p.name}
-                  {p.id === myPlayerId && <span className="text-green-400 text-base ml-1">（あなた）</span>}
-                  {p.id === selected.chipState.holder_player_id && <span className="text-green-600 text-base ml-1">（現在）</span>}
+                  {p.id === myPlayerId && <span className="text-green-400 text-base ml-1">{t.common.you}</span>}
+                  {p.id === selected.chipState.holder_player_id && <span className="text-green-600 text-base ml-1">{t.play.current}</span>}
                 </button>
               ))}
               {selected.chipState.holder_player_id !== null && (
@@ -215,7 +217,7 @@ export default function PlayClient() {
                   className="w-full py-3 px-4 rounded-lg text-left font-medium text-lg border
                              bg-[#145a32] border-green-700 hover:border-[#d4af37] text-green-300 transition-colors"
                 >
-                  場に戻す
+                  {t.play.returnToField}
                 </button>
               )}
             </div>
@@ -234,7 +236,7 @@ export default function PlayClient() {
                   onClick={endGame}
                   className="text-xs bg-red-900 hover:bg-red-800 text-red-200 px-2 py-1 rounded-lg border border-red-700"
                 >
-                  ゲーム終了
+                  {t.play.endGame}
                 </button>
               )}
             </div>
@@ -244,18 +246,18 @@ export default function PlayClient() {
         <div className="p-3 space-y-3 max-w-md mx-auto">
           <div className="card-casino !p-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[#d4af37] font-semibold text-lg">場のチップ</p>
+              <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
               {isHost && (
                 <button
                   onClick={() => router.push(`/game/${roomCode}/chips`)}
                   className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
                 >
-                  チップ管理
+                  {t.play.manageChips}
                 </button>
               )}
             </div>
             {fieldChips.length === 0 ? (
-              <p className="text-green-700 text-base text-center py-1">チップはすべて配られています</p>
+              <p className="text-green-700 text-base text-center py-1">{t.play.allDistributed}</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {fieldChips.map(cs => {
@@ -285,9 +287,9 @@ export default function PlayClient() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-white font-semibold text-lg">{player.name}</span>
-                  {player.id === myPlayerId && <span className="text-base text-green-400">（あなた）</span>}
+                  {player.id === myPlayerId && <span className="text-base text-green-400">{t.common.you}</span>}
                   {player.is_host && (
-                    <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">ホスト</span>
+                    <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">{t.common.host}</span>
                   )}
                 </div>
                 <div className="text-right shrink-0 ml-2">
@@ -298,7 +300,7 @@ export default function PlayClient() {
                 </div>
               </div>
               {chips.length === 0 ? (
-                <p className="text-green-800 text-base">チップなし</p>
+                <p className="text-green-800 text-base">{t.common.noChips}</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {chips.map(chipDef => {
@@ -330,13 +332,13 @@ export default function PlayClient() {
               onClick={() => setShowLog(v => !v)}
               className="w-full flex items-center justify-between text-[#d4af37] font-semibold text-lg"
             >
-              <span>📋 イベントログ ({events.length})</span>
-              <span className="text-green-500 text-base">{showLog ? '▲ 閉じる' : '▼ 開く'}</span>
+              <span>{t.play.eventLog.replace('{{count}}', String(events.length))}</span>
+              <span className="text-green-500 text-base">{showLog ? t.play.closeLog : t.play.openLog}</span>
             </button>
             {showLog && (
               <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
                 {events.length === 0 ? (
-                  <p className="text-green-700 text-lg text-center py-2">まだ操作がありません</p>
+                  <p className="text-green-700 text-lg text-center py-2">{t.play.noEvents}</p>
                 ) : (
                   events.map((ev) => (
                     <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">

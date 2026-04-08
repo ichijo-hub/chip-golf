@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Fredoka } from 'next/font/google';
 import './globals.css';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import { I18nProvider } from '@/lib/i18n';
 
 const geist = Geist({
   variable: '--font-geist-sans',
@@ -44,7 +45,9 @@ export default function RootLayout({
   return (
     <html lang="ja" className={`${geist.variable} ${fredoka.variable} h-full`}>
       <body className="min-h-full">
-        {children}
+        <I18nProvider>
+          {children}
+        </I18nProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

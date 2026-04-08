@@ -9,12 +9,14 @@ import { db } from '@/lib/firebase/client';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
 import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
+import { useT } from '@/lib/i18n';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function ResultClient() {
   const params = useParams();
   const router = useRouter();
+  const { t } = useT();
   const roomCode = (params.roomCode as string).toUpperCase();
 
   const [scores, setScores] = useState<PlayerScore[]>([]);
@@ -44,7 +46,7 @@ export default function ResultClient() {
   }, [roomCode]);
 
   if (loading) {
-    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">読み込み中...</p></main>;
+    return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
   }
 
   return (
@@ -52,7 +54,7 @@ export default function ResultClient() {
       <div className="max-w-md mx-auto">
         <div className="text-center mb-8 pt-6">
           <div className="text-5xl mb-3">🏆</div>
-          <h1 className="text-3xl font-bold text-[#d4af37]">結果発表</h1>
+          <h1 className="text-3xl font-bold text-[#d4af37]">{t.result.title}</h1>
           <p className="text-green-500 text-sm mt-1">{roomCode}</p>
         </div>
 
@@ -67,8 +69,8 @@ export default function ResultClient() {
                 </span>
               </div>
               <div className="flex gap-3 text-xs text-green-500 mb-2 ml-13">
-                <span>ポジティブ: <span className="text-green-300">+{positivePoints}</span></span>
-                <span>ネガティブ: <span className="text-red-300">-{negativePoints}</span></span>
+                <span>{t.result.positive}<span className="text-green-300">+{positivePoints}</span></span>
+                <span>{t.result.negative}<span className="text-red-300">-{negativePoints}</span></span>
               </div>
               {chips.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
@@ -83,10 +85,10 @@ export default function ResultClient() {
 
         <div className="space-y-3">
           <button onClick={() => router.push('/game/new')} className="btn-gold w-full py-4 text-lg">
-            もう一度遊ぶ
+            {t.result.playAgain}
           </button>
           <button onClick={() => router.push('/')} className="w-full py-3 rounded-lg border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors">
-            トップに戻る
+            {t.result.backToTop}
           </button>
         </div>
       </div>

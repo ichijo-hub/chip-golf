@@ -11,11 +11,13 @@ import { generateRoomCode } from '@/lib/roomCode';
 import { ChipTemplate } from '@/types';
 import { saveToHistory } from '@/lib/gameHistory';
 import { DEFAULT_CHIPS } from '@/lib/defaultChips';
+import { useT } from '@/lib/i18n';
 
 export default function NewGameClient() {
   const router = useRouter();
   const [hostName, setHostName] = useState('');
   const [templates, setTemplates] = useState<ChipTemplate[]>([]);
+  const { t } = useT();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const seeding = useRef(false);
@@ -53,8 +55,8 @@ export default function NewGameClient() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!hostName.trim()) { setError('ホスト名を入力してください'); return; }
-    if (templates.length === 0) { setError('チップの読み込みに失敗しました。ページを再読み込みしてください。'); return; }
+    if (!hostName.trim()) { setError(t.newGame.errorEmptyName); return; }
+    if (templates.length === 0) { setError(t.newGame.errorLoadChips); return; }
     setLoading(true);
     setError('');
 
@@ -107,7 +109,7 @@ export default function NewGameClient() {
       router.push(`/game/${roomCode}/lobby`);
     } catch (err) {
       console.error(err);
-      setError('ゲームの作成に失敗しました。もう一度お試しください。');
+      setError(t.newGame.errorCreate);
     } finally {
       setLoading(false);
     }
@@ -117,16 +119,16 @@ export default function NewGameClient() {
     <main className="min-h-screen p-4 pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6 pt-4">
-          <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">← 戻る</button>
-          <h1 className="text-2xl font-bold text-[#d4af37]">ゲーム作成</h1>
+          <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">← {t.common.back}</button>
+          <h1 className="text-2xl font-bold text-[#d4af37]">{t.newGame.title}</h1>
         </div>
 
         <form onSubmit={handleCreate} className="space-y-6">
           <div className="card-casino">
-            <label className="block text-[#d4af37] font-semibold mb-2">あなたの名前（ホスト）</label>
+            <label className="block text-[#d4af37] font-semibold mb-2">{t.newGame.hostNameLabel}</label>
             <input
               type="text" value={hostName} onChange={e => setHostName(e.target.value)}
-              placeholder="名前を入力" maxLength={20}
+              placeholder={t.newGame.hostNamePlaceholder} maxLength={20}
               className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
                          text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
             />
@@ -135,7 +137,7 @@ export default function NewGameClient() {
           {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 
           <button type="submit" disabled={loading} className="btn-gold w-full text-lg py-4">
-            {loading ? '作成中...' : 'ゲームを作成'}
+            {loading ? t.newGame.creating : t.newGame.create}
           </button>
         </form>
       </div>
