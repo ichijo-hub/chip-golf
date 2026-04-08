@@ -28,5 +28,5 @@ export const DEFAULT_CHIPS: DefaultChip[] = [
   { name: 'バンカー', chip_type: 'negative', point_value: 1, sort_order: 11, image_url: '/chips/BUNKER.webp', image_scale: 1.2, image_offset_y: 27, condition: 'バンカーに入れる' },
   { name: '木に当てる', chip_type: 'negative', point_value: 1, sort_order: 12, image_url: '/chips/TREE.webp', image_scale: 1.2, image_offset_y: 34, condition: 'ショットが木に当たる' },
   { name: 'カート道', chip_type: 'negative', point_value: 1, sort_order: 13, image_url: '/chips/CART.webp', image_scale: 1.3, image_offset_y: 34, condition: 'ボールがカート道に乗る' },
-  { name: 'チキンミス', chip_type: 'negative', point_value: 1, sort_order: 14, image_url: '/chips/CHICKEN.webp', image_scale: 1.2, image_offset_y: 18, condition: '極端に短いショット・空振り' },
+  { name: 'チキンミス', chip_type: 'negative', point_value: 1, sort_order: 14, image_url: '/chips/CHICKEN.webp', image_scale: 1.2, image_offset_y: 18, condition: '極端に短いショット・短いパター' },
 ];
