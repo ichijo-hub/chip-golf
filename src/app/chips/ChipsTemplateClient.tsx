@@ -192,7 +192,7 @@ export default function ChipsTemplateClient() {
     <>
       {editing && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setEditing(null)}>
-          <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="card-casino w-full max-w-md overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[#d4af37] font-bold text-lg">
                 {editing.id ? t.chipsTemplate.editTitle : t.chipsTemplate.addTitle}

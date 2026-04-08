@@ -174,7 +174,7 @@ export default function ChipsManageClient() {
     <>
       {editing && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => { setEditing(null); setConfirmDelete(false); }}>
-          <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="card-casino w-full max-w-md overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[#d4af37] font-bold text-lg">{t.chipsManage.editTitle}</p>
               <button onClick={() => { setEditing(null); setConfirmDelete(false); }} className="text-green-400 text-2xl leading-none">{t.common.close}</button>
