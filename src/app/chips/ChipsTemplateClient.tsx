@@ -13,7 +13,7 @@ import { DEFAULT_CHIPS } from '@/lib/defaultChips';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
-import { chipNamesEn } from '@/lib/i18n/chipNames';
+import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 
 interface EditingTemplate {
   id: string | null;
@@ -399,6 +399,9 @@ export default function ChipsTemplateClient() {
 function TemplateRow({ template, onEdit, disabled, tl }: { template: ChipTemplate; onEdit: () => void; disabled?: boolean; tl: ReturnType<typeof useT>['t'] }) {
   const { locale } = useT();
   const displayName = locale === 'en' ? (chipNamesEn[template.name] ?? template.name) : template.name;
+  const displayCondition = template.condition
+    ? (locale === 'en' ? (chipConditionsEn[template.condition] ?? template.condition) : template.condition)
+    : null;
   const isPos = template.chip_type === 'positive';
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? 'bg-[#0d2a18]' : 'bg-[#145a32]'}`}>
@@ -410,8 +413,8 @@ function TemplateRow({ template, onEdit, disabled, tl }: { template: ChipTemplat
         <p className={`text-xs ${disabled ? 'text-gray-600' : isPos ? 'text-green-500' : 'text-red-400'}`}>
           {isPos ? '+' : '-'}{template.default_point_value} pt（デフォルト）
         </p>
-        {template.condition && (
-          <p className="text-xs text-green-700 truncate mt-0.5">{template.condition}</p>
+        {displayCondition && (
+          <p className="text-xs text-green-700 truncate mt-0.5">{displayCondition}</p>
         )}
       </div>
       <button onClick={onEdit} className="text-sm text-gray-500 hover:text-[#d4af37] transition-colors shrink-0 px-2 py-1">

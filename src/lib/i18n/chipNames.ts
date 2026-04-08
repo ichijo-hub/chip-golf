@@ -14,7 +14,7 @@ export const chipNamesEn: Record<string, string> = {
   'バンカー': 'Bunker',
   '木に当てる': 'Hit a Tree',
   'カート道': 'Cart Path',
-  'チキンミス': 'Thin Shot',
+  'チキンミス': 'Chicken',
 };
 
 /** Japanese condition text → English condition text */
