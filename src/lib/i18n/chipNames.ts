@@ -34,4 +34,5 @@ export const chipConditionsEn: Record<string, string> = {
   'ショットが木に当たる': 'Shot hits a tree',
   'ボールがカート道に乗る': 'Ball comes to rest on the cart path',
   '極端に短いショット・短いパター': 'Extremely short shot or short putt',
+  '極端に短いショット・空振り': 'Extremely short shot or short putt', // legacy Firestore data
 };
