@@ -49,16 +49,14 @@ export default function PlayClient() {
       return;
     }
 
-    const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
+    const [playersSnap, chipDefsSnap, eventsSnap] = await Promise.all([
       getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
       getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
-      getDocs(collection(db, 'games', roomCode, 'chip_states')),
       getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30))),
     ]);
 
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
     setChipDefs(chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)).filter(c => c.is_active !== false));
-    setChipStates(chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState)));
     setEvents(eventsSnap.docs.map(d => ({ id: d.id, ...d.data() } as GameEvent)));
     setLoading(false);
   }, [roomCode, router]);
