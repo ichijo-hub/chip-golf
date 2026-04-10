@@ -494,6 +494,7 @@ function DraggableChip({
       {...attributes}
       {...listeners}
       onContextMenu={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
       style={{ opacity: isDragging ? 0.25 : 1, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
     >
       {children}
