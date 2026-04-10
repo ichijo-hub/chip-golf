@@ -10,6 +10,7 @@ import { Game, Player, ChipDefinition, ChipState } from '@/types';
 import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
+import LangToggle from '@/components/LangToggle';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -52,7 +53,10 @@ export default function ResultClient() {
   return (
     <main className="min-h-screen p-4 pb-24">
       <div className="max-w-md mx-auto">
-        <div className="text-center mb-8 pt-6">
+        <div className="flex justify-end pt-4 mb-2">
+          <LangToggle />
+        </div>
+        <div className="text-center mb-8">
           <div className="text-5xl mb-3">🏆</div>
           <h1 className="text-3xl font-bold text-[#d4af37]">{t.result.title}</h1>
           <p className="text-green-500 text-sm mt-1">{roomCode}</p>

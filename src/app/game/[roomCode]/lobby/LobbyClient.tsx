@@ -11,6 +11,7 @@ import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
 import { Game, Player } from '@/types';
 import { useT } from '@/lib/i18n';
+import LangToggle from '@/components/LangToggle';
 
 export default function LobbyClient() {
   const params = useParams();
@@ -150,7 +151,8 @@ export default function LobbyClient() {
           <button onClick={() => router.push('/')} className="text-green-400 hover:text-[#d4af37] transition-colors">
             {t.lobby.backToTop}
           </button>
-          <h1 className="text-2xl font-bold text-[#d4af37]">{t.lobby.title}</h1>
+          <h1 className="text-2xl font-bold text-[#d4af37] flex-1">{t.lobby.title}</h1>
+          <LangToggle />
         </div>
 
         <div className="card-casino text-center mb-4">

@@ -12,6 +12,7 @@ import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
+import LangToggle from '@/components/LangToggle';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 
 interface ChipSelection {
@@ -236,6 +237,7 @@ export default function PlayClient() {
           <div className="max-w-md mx-auto flex items-center justify-between">
             <button onClick={() => router.push('/')}><Logo size="sm" /></button>
             <div className="flex items-center gap-2">
+              <LangToggle />
               <p className="text-[#d4af37] font-bold text-xs">Room:{roomCode}</p>
               {isHost && (
                 <button
