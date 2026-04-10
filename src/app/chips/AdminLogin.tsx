@@ -1,28 +1,26 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { verifyAdminPin } from './actions';
 import { useT } from '@/lib/i18n';
 
-export default function AdminLogin() {
-  const router = useRouter();
+export default function AdminLogin({ onAuth }: { onAuth: () => void }) {
   const { t } = useT();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    startTransition(async () => {
-      const ok = await verifyAdminPin(pin);
-      if (ok) {
-        router.refresh();
-      } else {
-        setError(t.admin.invalidPin);
-        setPin('');
-      }
-    });
+    setIsPending(true);
+    const ok = verifyAdminPin(pin);
+    setIsPending(false);
+    if (ok) {
+      onAuth();
+    } else {
+      setError(t.admin.invalidPin);
+      setPin('');
+    }
   }
 
   return (

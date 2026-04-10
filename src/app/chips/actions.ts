@@ -1,24 +1,14 @@
-'use server';
+// Client-side session management (localStorage)
+const KEY = 'chip_golf_admin';
+const VAL = 'authenticated';
 
-import { cookies } from 'next/headers';
-
-const SESSION_COOKIE = 'admin_session';
-const SESSION_VALUE = 'chip-golf-admin';
-
-export async function verifyAdminPin(pin: string): Promise<boolean> {
-  if (pin !== process.env.ADMIN_PIN) return false;
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, SESSION_VALUE, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 30, // 30日
-  });
+export function verifyAdminPin(pin: string): boolean {
+  if (pin !== (process.env.NEXT_PUBLIC_ADMIN_PIN ?? '')) return false;
+  localStorage.setItem(KEY, VAL);
   return true;
 }
 
-export async function checkAdminSession(): Promise<boolean> {
-  const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE)?.value === SESSION_VALUE;
+export function checkAdminSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(KEY) === VAL;
 }
