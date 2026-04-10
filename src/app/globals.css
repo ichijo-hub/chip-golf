@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* iOS セーフエリア対応 */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 :root {
   --casino-green-dark: #145a32;
   --casino-green: #1a7a43;

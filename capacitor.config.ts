@@ -4,7 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.chipgolf.app',
   appName: 'Chip Golf',
   webDir: 'out',
-  bundledWebRuntime: false,
+  ios: {
+    contentInset: 'always',
+  },
 };
 
 export default config;
