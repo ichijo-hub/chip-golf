@@ -47,11 +47,13 @@ export default function RootLayout({
   return (
     <html lang="ja" className={`${geist.variable} ${fredoka.variable}`}>
       <body>
-        <RscFallback />
-        <I18nProvider>
-          {children}
-        </I18nProvider>
-        <ServiceWorkerRegister />
+        <div id="scroll-root">
+          <RscFallback />
+          <I18nProvider>
+            {children}
+          </I18nProvider>
+          <ServiceWorkerRegister />
+        </div>
       </body>
     </html>
   );
