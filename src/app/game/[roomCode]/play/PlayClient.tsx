@@ -326,7 +326,6 @@ export default function PlayClient() {
                           pointValue={def.point_value}
                           size={64}
                           flash={(flashCounts[cs.id] ?? 0) > 0}
-                          onClick={() => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef: def }); }}
                         />
                       </DraggableChip>
                     );
@@ -459,6 +458,7 @@ function DraggableChip({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const tapStart = useRef({ time: 0, x: 0, y: 0 });
+  const mouseStart = useRef({ x: 0, y: 0 });
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap; // 毎レンダーで最新を維持、effectは再実行しない
 
@@ -496,6 +496,11 @@ function DraggableChip({
       {...listeners}
       draggable={false}
       onContextMenu={(e) => e.preventDefault()}
+      onMouseDown={(e) => { mouseStart.current = { x: e.clientX, y: e.clientY }; }}
+      onClick={(e) => {
+        const dist = Math.hypot(e.clientX - mouseStart.current.x, e.clientY - mouseStart.current.y);
+        if (dist < 8) onTapRef.current?.();
+      }}
       style={{ opacity: isDragging ? 0.25 : 1, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
     >
       {children}
