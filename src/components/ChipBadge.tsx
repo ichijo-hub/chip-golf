@@ -41,7 +41,6 @@ export default function ChipBadge({
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      onDragStart={(e: React.DragEvent) => e.preventDefault()}
       style={{ width: size, height: size, minWidth: size, ...(imageUrl ? { background: 'transparent', border: `2px solid ${isPositive ? '#d4af37' : '#ef4444'}`, boxShadow: 'none' } : {}) }}
       className={[
         'chip-badge',
