@@ -316,7 +316,7 @@ export default function PlayClient() {
                     const def = chipDefs.find(d => d.id === cs.chip_definition_id);
                     if (!def) return null;
                     return (
-                      <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef: def }}>
+                      <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef: def }} onTap={() => setSelected({ chipState: cs, chipDef: def })}>
                         <ChipBadge
                           name={def.name}
                           chipType={def.chip_type}
@@ -363,7 +363,7 @@ export default function PlayClient() {
                       const cs = chipStates.find(s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id);
                       if (!cs) return null;
                       return (
-                        <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef }}>
+                        <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef }} onTap={() => setSelected({ chipState: cs, chipDef })}>
                           <ChipBadge
                             name={chipDef.name}
                             chipType={chipDef.chip_type}
@@ -449,16 +449,48 @@ export default function PlayClient() {
 // ---- inner components ----
 
 function DraggableChip({
-  id, data, children,
+  id, data, children, onTap,
 }: {
   id: string;
   data: ChipSelection;
   children: React.ReactNode;
+  onTap?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+  const tapStart = useRef({ time: 0, x: 0, y: 0 });
+
+  useEffect(() => {
+    const el = nodeRef.current;
+    if (!el) return;
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault(); // iOSネイティブドラッグを完全に抑制
+      tapStart.current = { time: Date.now(), x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!onTap) return;
+      const { time, x, y } = tapStart.current;
+      const t = e.changedTouches[0];
+      const dist = Math.hypot(t.clientX - x, t.clientY - y);
+      // 400ms以内 かつ 8px未満の移動 → タップとして扱う
+      if (Date.now() - time < 400 && dist < 8) onTap();
+    };
+    el.addEventListener('touchstart', handleTouchStart, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onTap]);
+
+  const setRef = useCallback((node: HTMLDivElement | null) => {
+    nodeRef.current = node;
+    setNodeRef(node);
+  }, [setNodeRef]);
+
   return (
     <div
-      ref={setNodeRef}
+      ref={setRef}
       {...attributes}
       {...listeners}
       onContextMenu={(e) => e.preventDefault()}
