@@ -78,6 +78,8 @@ body {
   text-align: center;
   line-height: 1.1;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .chip-badge-interactive {
