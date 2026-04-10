@@ -12,7 +12,7 @@ import { calculateScores } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
-import { chipNamesEn } from '@/lib/i18n/chipNames';
+import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -190,6 +190,11 @@ export default function PlayClient() {
                   <p className={`text-base font-medium ${selected.chipDef.chip_type === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
                     {selected.chipDef.chip_type === 'positive' ? `+${selected.chipDef.point_value} ${t.common.positive}` : `-${selected.chipDef.point_value} ${t.common.negative}`}
                   </p>
+                  {selected.chipDef.condition && (
+                    <p className="text-green-600 text-sm mt-1">
+                      {locale === 'en' ? (chipConditionsEn[selected.chipDef.condition] ?? selected.chipDef.condition) : selected.chipDef.condition}
+                    </p>
+                  )}
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="text-green-400 text-3xl leading-none self-start">✕</button>
