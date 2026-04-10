@@ -54,7 +54,8 @@ export default function ChipBadge({
         <img
           src={imageUrl}
           alt={displayName}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', transform: `scale(${imageScale ?? 1.5})`, transformOrigin: `center ${imageOffsetY ?? 40}%` }}
+          draggable={false}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', transform: `scale(${imageScale ?? 1.5})`, transformOrigin: `center ${imageOffsetY ?? 40}%`, WebkitUserDrag: 'none' } as React.CSSProperties}
         />
       )}
       {/* 内側の装飾リング */}
