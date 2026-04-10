@@ -32,9 +32,10 @@ export default function ChipsManageClient() {
   const params = useParams();
   const router = useRouter();
   const [roomCode] = useState(() => {
+    const fromStorage = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('currentRoomCode') : null;
     const fromSearch = new URLSearchParams(window.location.search).get('room');
     const fromParams = params?.roomCode as string | undefined;
-    const code = fromSearch || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
+    const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
     return (code || '').toUpperCase();
   });
 
@@ -71,6 +72,7 @@ export default function ChipsManageClient() {
   useEffect(() => {
     if (!loading && game && myPlayerId && myPlayerId !== game.host_player_id) {
       const dest = game.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`;
+      sessionStorage.setItem('currentRoomCode', roomCode);
       router.push(dest);
     }
   }, [loading, game, myPlayerId, roomCode, router]);
@@ -308,7 +310,7 @@ export default function ChipsManageClient() {
       <main className="min-h-screen p-4 pb-24">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3 mb-6 pt-4">
-            <button onClick={() => router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`)} className="text-green-400 hover:text-[#d4af37] transition-colors">
+            <button onClick={() => { sessionStorage.setItem('currentRoomCode', roomCode); router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`); }} className="text-green-400 hover:text-[#d4af37] transition-colors">
               {game?.status === 'playing' ? t.chipsManage.backToGame : t.chipsManage.backToLobby}
             </button>
             <h1 className="text-2xl font-bold text-[#d4af37]">{t.chipsManage.title}</h1>
