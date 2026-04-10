@@ -465,7 +465,6 @@ function DraggableChip({
     const el = nodeRef.current;
     if (!el) return;
     const handleTouchStart = (e: TouchEvent) => {
-      e.preventDefault(); // キャプチャフェーズで先にiOSのフロートタイマーをキャンセル
       tapStart.current = { time: Date.now(), x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
     const handleTouchEnd = (e: TouchEvent) => {
@@ -475,11 +474,11 @@ function DraggableChip({
       const dist = Math.hypot(t.clientX - x, t.clientY - y);
       if (Date.now() - time < 400 && dist < 8) onTapRef.current();
     };
-    el.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
-    el.addEventListener('touchend', handleTouchEnd, { capture: true });
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
     return () => {
-      el.removeEventListener('touchstart', handleTouchStart, { capture: true } as EventListenerOptions);
-      el.removeEventListener('touchend', handleTouchEnd, { capture: true } as EventListenerOptions);
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchend', handleTouchEnd);
     };
   }, []); // マウント時のみ登録、onTapはrefで参照
 
