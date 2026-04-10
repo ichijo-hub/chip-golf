@@ -1,5 +1,4 @@
-export function generateStaticParams() {
-  return [{ roomCode: '__placeholder__' }];
-}
-import ResultClient from './ResultClient';
+'use client';
+import dynamic from 'next/dynamic';
+const ResultClient = dynamic(() => import('./ResultClient'), { ssr: false });
 export default function Page() { return <ResultClient />; }

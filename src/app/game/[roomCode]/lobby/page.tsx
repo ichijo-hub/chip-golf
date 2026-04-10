@@ -1,5 +1,4 @@
-export function generateStaticParams() {
-  return [{ roomCode: '__placeholder__' }];
-}
-import LobbyClient from './LobbyClient';
+'use client';
+import dynamic from 'next/dynamic';
+const LobbyClient = dynamic(() => import('./LobbyClient'), { ssr: false });
 export default function Page() { return <LobbyClient />; }
