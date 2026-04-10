@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 /* iOS セーフエリア対応 */
-body {
+html, body {
   background-color: #145a32;
+}
+body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
