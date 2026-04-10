@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
@@ -14,10 +14,15 @@ import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 
 export default function LobbyClient() {
+  const params = useParams();
   const router = useRouter();
-  const [roomCode] = useState(() =>
-    (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
-  );
+  // ?room= が優先（__placeholder__ ナビゲーション）、なければ params から取得（Vercel SSR 直アクセス）
+  const [roomCode] = useState(() => {
+    const fromSearch = new URLSearchParams(window.location.search).get('room');
+    const fromParams = params?.roomCode as string | undefined;
+    const code = fromSearch || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
+    return (code || '').toUpperCase();
+  });
 
   const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
