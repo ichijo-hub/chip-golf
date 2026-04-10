@@ -45,8 +45,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className={`${geist.variable} ${fredoka.variable} h-full`}>
-      <body className="min-h-full">
+    <html lang="ja" className={`${geist.variable} ${fredoka.variable}`}>
+      <body>
         <RscFallback />
         <I18nProvider>
           {children}
