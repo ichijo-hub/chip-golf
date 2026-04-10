@@ -51,11 +51,18 @@ export default function ChipBadge({
       ].filter(Boolean).join(' ')}
     >
       {imageUrl && (
-        <img
-          src={imageUrl}
-          alt={displayName}
-          draggable={false}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', transform: `scale(${imageScale ?? 1.5})`, transformOrigin: `center ${imageOffsetY ?? 40}%`, WebkitUserDrag: 'none' } as React.CSSProperties}
+        <div
+          aria-label={displayName}
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '50%',
+            backgroundImage: `url(${imageUrl})`,
+            backgroundSize: `${(imageScale ?? 1.5) * 100}%`,
+            backgroundPosition: `center ${imageOffsetY ?? 40}%`,
+            backgroundRepeat: 'no-repeat',
+            pointerEvents: 'none',
+          }}
         />
       )}
       {/* 内側の装飾リング */}
