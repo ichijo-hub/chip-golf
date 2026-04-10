@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
   query, orderBy,
@@ -29,9 +29,10 @@ interface EditingChip {
 }
 
 export default function ChipsManageClient() {
-  const params = useParams();
   const router = useRouter();
-  const roomCode = (params.roomCode as string).toUpperCase();
+  const [roomCode] = useState(() =>
+    (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
+  );
 
   const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -64,7 +65,7 @@ export default function ChipsManageClient() {
 
   useEffect(() => {
     if (!loading && game && myPlayerId && myPlayerId !== game.host_player_id) {
-      const dest = game.status === 'playing' ? `/game/${roomCode}/play` : `/game/${roomCode}/lobby`;
+      const dest = game.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`;
       router.push(dest);
     }
   }, [loading, game, myPlayerId, roomCode, router]);
@@ -302,7 +303,7 @@ export default function ChipsManageClient() {
       <main className="min-h-screen p-4 pb-24">
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3 mb-6 pt-4">
-            <button onClick={() => router.push(game?.status === 'playing' ? `/game/${roomCode}/play` : `/game/${roomCode}/lobby`)} className="text-green-400 hover:text-[#d4af37] transition-colors">
+            <button onClick={() => router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`)} className="text-green-400 hover:text-[#d4af37] transition-colors">
               {game?.status === 'playing' ? t.chipsManage.backToGame : t.chipsManage.backToLobby}
             </button>
             <h1 className="text-2xl font-bold text-[#d4af37]">{t.chipsManage.title}</h1>

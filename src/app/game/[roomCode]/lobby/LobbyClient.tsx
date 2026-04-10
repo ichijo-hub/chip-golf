@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
@@ -14,9 +14,10 @@ import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 
 export default function LobbyClient() {
-  const params = useParams();
   const router = useRouter();
-  const roomCode = (params.roomCode as string).toUpperCase();
+  const [roomCode] = useState(() =>
+    (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
+  );
 
   const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -43,12 +44,12 @@ export default function LobbyClient() {
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
     setLoading(false);
 
-    if (typedGame.status === 'playing') router.push(`/game/${roomCode}/play`);
-    else if (typedGame.status === 'finished') router.push(`/game/${roomCode}/result`);
+    if (typedGame.status === 'playing') router.push(`/game/__placeholder__/play?room=${roomCode}`);
+    else if (typedGame.status === 'finished') router.push(`/game/__placeholder__/result?room=${roomCode}`);
   }, [roomCode, router]);
 
   useEffect(() => {
-    setLobbyUrl(`${window.location.origin}/game/${roomCode}/lobby`);
+    setLobbyUrl(window.location.href);
     const savedId = localStorage.getItem(`player_${roomCode}`);
     if (savedId) setMyPlayerId(savedId);
     loadGame();
@@ -60,7 +61,7 @@ export default function LobbyClient() {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
       setGame(updated);
-      if (updated.status === 'playing') router.push(`/game/${roomCode}/play`);
+      if (updated.status === 'playing') router.push(`/game/__placeholder__/play?room=${roomCode}`);
     });
 
     // Realtime: player list changes
@@ -100,7 +101,7 @@ export default function LobbyClient() {
 
   async function handleStartGame() {
     await updateDoc(doc(db, 'games', roomCode), { status: 'playing' });
-    router.push(`/game/${roomCode}/play`);
+    router.push(`/game/__placeholder__/play?room=${roomCode}`);
   }
 
   async function handleDeleteGame() {
@@ -219,7 +220,7 @@ export default function LobbyClient() {
         {isHost && isJoined && (
           <div className="space-y-3">
             <button
-              onClick={() => router.push(`/game/${roomCode}/chips`)}
+              onClick={() => router.push(`/game/__placeholder__/chips?room=${roomCode}`)}
               className="w-full py-3 rounded-lg border border-green-700 text-green-300
                          hover:border-[#d4af37] hover:text-[#d4af37] transition-colors text-sm"
             >

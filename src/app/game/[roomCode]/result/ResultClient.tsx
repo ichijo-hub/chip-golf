@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, query, orderBy,
 } from 'firebase/firestore';
@@ -15,10 +15,11 @@ import LangToggle from '@/components/LangToggle';
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function ResultClient() {
-  const params = useParams();
   const router = useRouter();
   const { t } = useT();
-  const roomCode = (params.roomCode as string).toUpperCase();
+  const [roomCode] = useState(() =>
+    (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
+  );
 
   const [scores, setScores] = useState<PlayerScore[]>([]);
   const [loading, setLoading] = useState(true);

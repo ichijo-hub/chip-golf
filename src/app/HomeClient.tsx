@@ -55,14 +55,14 @@ export default function HomeClient() {
       setError(t.home.invalidRoomCode);
       return;
     }
-    router.push(`/game/${code}/lobby`);
+    router.push(`/game/__placeholder__/lobby?room=${code}`);
   }
 
   function goToGame(game: Game) {
     if (game.status === 'playing') {
-      router.push(`/game/${game.room_code}/play`);
+      router.push(`/game/__placeholder__/play?room=${game.room_code}`);
     } else {
-      router.push(`/game/${game.room_code}/lobby`);
+      router.push(`/game/__placeholder__/lobby?room=${game.room_code}`);
     }
   }
 

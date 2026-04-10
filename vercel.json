@@ -1,0 +1,44 @@
+{
+  "redirects": [
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/lobby/",
+      "destination": "/game/__placeholder__/lobby/?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/lobby",
+      "destination": "/game/__placeholder__/lobby?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/play/",
+      "destination": "/game/__placeholder__/play/?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/play",
+      "destination": "/game/__placeholder__/play?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/result/",
+      "destination": "/game/__placeholder__/result/?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/result",
+      "destination": "/game/__placeholder__/result?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/chips/",
+      "destination": "/game/__placeholder__/chips/?room=:roomCode",
+      "permanent": false
+    },
+    {
+      "source": "/game/:roomCode([A-Za-z0-9]+)/chips",
+      "destination": "/game/__placeholder__/chips?room=:roomCode",
+      "permanent": false
+    }
+  ]
+}

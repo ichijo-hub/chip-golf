@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc,
   onSnapshot, query, orderBy, limit,
@@ -26,9 +26,10 @@ interface ChipSelection {
 }
 
 export default function PlayClient() {
-  const params = useParams();
   const router = useRouter();
-  const roomCode = (params.roomCode as string).toUpperCase();
+  const [roomCode] = useState(() =>
+    (new URLSearchParams(window.location.search).get('room') || '').toUpperCase()
+  );
 
   const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -61,7 +62,7 @@ export default function PlayClient() {
     setGame(typedGame);
 
     if (typedGame.status === 'finished') {
-      router.push(`/game/${roomCode}/result`);
+      router.push(`/game/__placeholder__/result?room=${roomCode}`);
       return;
     }
 
@@ -111,7 +112,7 @@ export default function PlayClient() {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
       setGame(updated);
-      if (updated.status === 'finished') router.push(`/game/${roomCode}/result`);
+      if (updated.status === 'finished') router.push(`/game/__placeholder__/result?room=${roomCode}`);
     });
 
     return () => { unsubChips(); unsubEvents(); unsubGame(); };
@@ -180,7 +181,7 @@ export default function PlayClient() {
     if (!game) return;
     if (!confirm(t.play.confirmEndGame)) return;
     await updateDoc(doc(db, 'games', roomCode), { status: 'finished' });
-    router.push(`/game/${roomCode}/result`);
+    router.push(`/game/__placeholder__/result?room=${roomCode}`);
   }
 
   if (loading) {
@@ -301,7 +302,7 @@ export default function PlayClient() {
                 <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
                 {isHost && (
                   <button
-                    onClick={() => router.push(`/game/${roomCode}/chips`)}
+                    onClick={() => router.push(`/game/__placeholder__/chips?room=${roomCode}`)}
                     className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
                   >
                     {t.play.manageChips}

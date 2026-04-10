@@ -106,7 +106,7 @@ export default function NewGameClient() {
 
       localStorage.setItem(`player_${roomCode}`, playerId);
       saveToHistory(roomCode);
-      router.push(`/game/${roomCode}/lobby`);
+      router.push(`/game/__placeholder__/lobby?room=${roomCode}`);
     } catch (err) {
       console.error(err);
       setError(t.newGame.errorCreate);
