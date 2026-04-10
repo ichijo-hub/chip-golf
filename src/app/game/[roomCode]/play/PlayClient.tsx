@@ -459,29 +459,30 @@ function DraggableChip({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const tapStart = useRef({ time: 0, x: 0, y: 0 });
+  const onTapRef = useRef(onTap);
+  onTapRef.current = onTap; // 毎レンダーで最新を維持、effectは再実行しない
 
   useEffect(() => {
     const el = nodeRef.current;
     if (!el) return;
     const handleTouchStart = (e: TouchEvent) => {
-      e.preventDefault(); // iOSネイティブドラッグを完全に抑制
+      e.preventDefault(); // キャプチャフェーズで先にiOSのフロートタイマーをキャンセル
       tapStart.current = { time: Date.now(), x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
     const handleTouchEnd = (e: TouchEvent) => {
-      if (!onTap) return;
+      if (!onTapRef.current) return;
       const { time, x, y } = tapStart.current;
       const t = e.changedTouches[0];
       const dist = Math.hypot(t.clientX - x, t.clientY - y);
-      // 400ms以内 かつ 8px未満の移動 → タップとして扱う
-      if (Date.now() - time < 400 && dist < 8) onTap();
+      if (Date.now() - time < 400 && dist < 8) onTapRef.current();
     };
-    el.addEventListener('touchstart', handleTouchStart, { passive: false });
-    el.addEventListener('touchend', handleTouchEnd);
+    el.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
+    el.addEventListener('touchend', handleTouchEnd, { capture: true });
     return () => {
-      el.removeEventListener('touchstart', handleTouchStart);
-      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('touchstart', handleTouchStart, { capture: true } as EventListenerOptions);
+      el.removeEventListener('touchend', handleTouchEnd, { capture: true } as EventListenerOptions);
     };
-  }, [onTap]);
+  }, []); // マウント時のみ登録、onTapはrefで参照
 
   const setRef = useCallback((node: HTMLDivElement | null) => {
     nodeRef.current = node;
