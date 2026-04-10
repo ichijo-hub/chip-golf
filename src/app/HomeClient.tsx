@@ -55,12 +55,12 @@ export default function HomeClient() {
       setError(t.home.invalidRoomCode);
       return;
     }
-    sessionStorage.setItem('currentRoomCode', code);
+    localStorage.setItem('currentRoomCode', code);
     router.push(`/game/__placeholder__/lobby?room=${code}`);
   }
 
   function goToGame(game: Game) {
-    sessionStorage.setItem('currentRoomCode', game.room_code);
+    localStorage.setItem('currentRoomCode', game.room_code);
     if (game.status === 'playing') {
       router.push(`/game/__placeholder__/play?room=${game.room_code}`);
     } else {

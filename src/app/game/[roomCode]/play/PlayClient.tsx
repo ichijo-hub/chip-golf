@@ -29,7 +29,7 @@ export default function PlayClient() {
   const params = useParams();
   const router = useRouter();
   const [roomCode] = useState(() => {
-    const fromStorage = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('currentRoomCode') : null;
+    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
     const fromSearch = new URLSearchParams(window.location.search).get('room');
     const fromParams = params?.roomCode as string | undefined;
     const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
@@ -68,7 +68,7 @@ export default function PlayClient() {
     setGame(typedGame);
 
     if (typedGame.status === 'finished') {
-      sessionStorage.setItem('currentRoomCode', roomCode);
+      localStorage.setItem('currentRoomCode', roomCode);
       router.push(`/game/__placeholder__/result?room=${roomCode}`);
       return;
     }
@@ -119,7 +119,7 @@ export default function PlayClient() {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
       setGame(updated);
-      if (updated.status === 'finished') { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
+      if (updated.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
     });
 
     return () => { unsubChips(); unsubEvents(); unsubGame(); };
@@ -188,7 +188,7 @@ export default function PlayClient() {
     if (!game) return;
     if (!confirm(t.play.confirmEndGame)) return;
     await updateDoc(doc(db, 'games', roomCode), { status: 'finished' });
-    sessionStorage.setItem('currentRoomCode', roomCode);
+    localStorage.setItem('currentRoomCode', roomCode);
     router.push(`/game/__placeholder__/result?room=${roomCode}`);
   }
 
@@ -310,7 +310,7 @@ export default function PlayClient() {
                 <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
                 {isHost && (
                   <button
-                    onClick={() => { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
+                    onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
                     className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
                   >
                     {t.play.manageChips}

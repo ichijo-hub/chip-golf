@@ -19,7 +19,7 @@ export default function ResultClient() {
   const router = useRouter();
   const { t } = useT();
   const [roomCode] = useState(() => {
-    const fromStorage = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('currentRoomCode') : null;
+    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
     const fromSearch = new URLSearchParams(window.location.search).get('room');
     const fromParams = params?.roomCode as string | undefined;
     const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');

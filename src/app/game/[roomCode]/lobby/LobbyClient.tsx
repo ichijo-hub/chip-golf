@@ -18,7 +18,7 @@ export default function LobbyClient() {
   const router = useRouter();
   // ?room= が優先（__placeholder__ ナビゲーション）、なければ params から取得（Vercel SSR 直アクセス）
   const [roomCode] = useState(() => {
-    const fromStorage = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('currentRoomCode') : null;
+    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
     const fromSearch = new URLSearchParams(window.location.search).get('room');
     const fromParams = params?.roomCode as string | undefined;
     const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
@@ -51,8 +51,8 @@ export default function LobbyClient() {
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
     setLoading(false);
 
-    if (typedGame.status === 'playing') { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
-    else if (typedGame.status === 'finished') { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
+    if (typedGame.status === 'playing') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
+    else if (typedGame.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
   }, [roomCode, router]);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function LobbyClient() {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
       setGame(updated);
-      if (updated.status === 'playing') { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
+      if (updated.status === 'playing') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
     });
 
     // Realtime: player list changes
@@ -109,7 +109,7 @@ export default function LobbyClient() {
 
   async function handleStartGame() {
     await updateDoc(doc(db, 'games', roomCode), { status: 'playing' });
-    sessionStorage.setItem('currentRoomCode', roomCode);
+    localStorage.setItem('currentRoomCode', roomCode);
     router.push(`/game/__placeholder__/play?room=${roomCode}`);
   }
 
@@ -229,7 +229,7 @@ export default function LobbyClient() {
         {isHost && isJoined && (
           <div className="space-y-3">
             <button
-              onClick={() => { sessionStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
+              onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
               className="w-full py-3 rounded-lg border border-green-700 text-green-300
                          hover:border-[#d4af37] hover:text-[#d4af37] transition-colors text-sm"
             >
