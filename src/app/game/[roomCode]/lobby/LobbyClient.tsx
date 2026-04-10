@@ -36,6 +36,7 @@ export default function LobbyClient() {
   const [lobbyUrl, setLobbyUrl] = useState('');
 
   const loadGame = useCallback(async () => {
+    if (!roomCode) { router.push('/'); return; }
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
     if (!gameSnap.exists()) {
       setError(t.lobby.gameNotFound);
@@ -62,6 +63,7 @@ export default function LobbyClient() {
 
   useEffect(() => {
     // Realtime: game status changes
+    if (!roomCode) return;
     const unsubGame = onSnapshot(doc(db, 'games', roomCode), (snap) => {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;

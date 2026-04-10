@@ -56,6 +56,7 @@ export default function PlayClient() {
   );
 
   const loadData = useCallback(async () => {
+    if (!roomCode) { router.push('/'); return; }
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
     if (!gameSnap.exists()) {
       setError(t.play.gameNotFound);

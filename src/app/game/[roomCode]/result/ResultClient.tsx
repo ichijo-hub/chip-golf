@@ -29,6 +29,7 @@ export default function ResultClient() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!roomCode) { router.push('/'); return; }
     async function load() {
       const gameSnap = await getDoc(doc(db, 'games', roomCode));
       if (!gameSnap.exists()) { setLoading(false); return; }

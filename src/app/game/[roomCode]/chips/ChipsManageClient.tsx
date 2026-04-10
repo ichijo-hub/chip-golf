@@ -52,6 +52,7 @@ export default function ChipsManageClient() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!roomCode) { router.push('/'); return; }
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
     if (!gameSnap.exists()) { setLoading(false); return; }
     const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
