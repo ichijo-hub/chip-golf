@@ -3,6 +3,7 @@
 /* iOS セーフエリア対応 */
 html, body {
   background-color: #145a32;
+  overscroll-behavior: none;
 }
 body {
   padding-top: env(safe-area-inset-top);
