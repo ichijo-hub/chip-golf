@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc,
   onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
+import {
+  DndContext, DragOverlay, MouseSensor, TouchSensor,
+  useSensor, useSensors, useDraggable, useDroppable,
+  type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core';
 import { db } from '@/lib/firebase/client';
 import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
 import { calculateScores } from '@/lib/scoring';
@@ -37,6 +42,13 @@ export default function PlayClient() {
   const [error, setError] = useState('');
   const [showLog, setShowLog] = useState(false);
   const [flashCounts, setFlashCounts] = useState<Record<string, number>>({});
+  const [dragActiveChip, setDragActiveChip] = useState<ChipSelection | null>(null);
+  const dragOccurredRef = useRef(false);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
 
   const loadData = useCallback(async () => {
     const gameSnap = await getDoc(doc(db, 'games', roomCode));
@@ -78,7 +90,6 @@ export default function PlayClient() {
   }, [roomCode, loadData]);
 
   useEffect(() => {
-    // Realtime: chip_states changes
     const unsubChips = onSnapshot(collection(db, 'games', roomCode, 'chip_states'), (snap) => {
       snap.docChanges().forEach(change => {
         if (change.type === 'modified' || change.type === 'added') {
@@ -89,7 +100,6 @@ export default function PlayClient() {
       setChipStates(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState)));
     });
 
-    // Realtime: game_events
     const unsubEvents = onSnapshot(
       query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30)),
       (snap) => {
@@ -97,7 +107,6 @@ export default function PlayClient() {
       }
     );
 
-    // Realtime: game status
     const unsubGame = onSnapshot(doc(db, 'games', roomCode), (snap) => {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
@@ -108,13 +117,12 @@ export default function PlayClient() {
     return () => { unsubChips(); unsubEvents(); unsubGame(); };
   }, [roomCode, router]);
 
-  async function transferChip(toPlayerId: string | null) {
-    if (!selected || !game) return;
+  // ---- transfer logic ----
 
-    const fromPlayerId = selected.chipState.holder_player_id;
-    const movedId = selected.chipState.id;
+  async function doTransfer(chipState: ChipState, chipDef: ChipDefinition, toPlayerId: string | null) {
+    const fromPlayerId = chipState.holder_player_id;
+    const movedId = chipState.id;
 
-    setSelected(null);
     setFlashCounts(prev => ({ ...prev, [movedId]: (prev[movedId] ?? 0) + 1 }));
 
     await updateDoc(doc(db, 'games', roomCode, 'chip_states', movedId), {
@@ -124,12 +132,12 @@ export default function PlayClient() {
 
     const fromName = players.find(p => p.id === fromPlayerId)?.name ?? '場';
     const toName = toPlayerId ? (players.find(p => p.id === toPlayerId)?.name ?? '') : '場';
-    const description = `${selected.chipDef.name}: ${fromName} → ${toName}`;
+    const description = `${chipDef.name}: ${fromName} → ${toName}`;
 
     await addDoc(collection(db, 'games', roomCode, 'game_events'), {
       id: '', game_id: roomCode,
       chip_state_id: movedId,
-      chip_definition_id: selected.chipDef.id,
+      chip_definition_id: chipDef.id,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
       hole_number: null,
@@ -137,6 +145,36 @@ export default function PlayClient() {
       created_at: new Date().toISOString(),
     });
   }
+
+  async function transferChip(toPlayerId: string | null) {
+    if (!selected || !game) return;
+    const snap = { ...selected };
+    setSelected(null);
+    await doTransfer(snap.chipState, snap.chipDef, toPlayerId);
+  }
+
+  // ---- drag & drop handlers ----
+
+  function handleDragStart(event: DragStartEvent) {
+    setDragActiveChip(event.active.data.current as ChipSelection);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    // flag so onClick on chips doesn't open modal immediately after a drag
+    dragOccurredRef.current = true;
+    setTimeout(() => { dragOccurredRef.current = false; }, 100);
+
+    const drag = dragActiveChip;
+    setDragActiveChip(null);
+    if (!drag || !event.over) return;
+
+    const toPlayerId = event.over.id === 'field' ? null : String(event.over.id);
+    if (toPlayerId === drag.chipState.holder_player_id) return; // same zone → no-op
+
+    await doTransfer(drag.chipState, drag.chipDef, toPlayerId);
+  }
+
+  // ---- render ----
 
   async function endGame() {
     if (!game) return;
@@ -159,6 +197,8 @@ export default function PlayClient() {
   }
 
   const isHost = myPlayerId === game?.host_player_id;
+  const isDragging = !!dragActiveChip;
+
   const fieldChips = chipStates
     .filter(cs => cs.holder_player_id === null)
     .sort((a, b) => {
@@ -171,7 +211,8 @@ export default function PlayClient() {
   const scores = game ? calculateScores(players, chipStates, chipDefs) : [];
 
   return (
-    <>
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      {/* タップ → モーダル */}
       {selected && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setSelected(null)}>
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -253,88 +294,97 @@ export default function PlayClient() {
         </div>
 
         <div className="p-3 space-y-3 max-w-md mx-auto">
-          <div className="card-casino !p-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
-              {isHost && (
-                <button
-                  onClick={() => router.push(`/game/${roomCode}/chips`)}
-                  className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
-                >
-                  {t.play.manageChips}
-                </button>
-              )}
-            </div>
-            {fieldChips.length === 0 ? (
-              <p className="text-green-700 text-base text-center py-1">{t.play.allDistributed}</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {fieldChips.map(cs => {
-                  const def = chipDefs.find(d => d.id === cs.chip_definition_id);
-                  if (!def) return null;
-                  return (
-                    <ChipBadge
-                      key={`${cs.id}-${flashCounts[cs.id] ?? 0}`}
-                      name={def.name}
-                      chipType={def.chip_type}
-                      imageUrl={def.image_url}
-                      imageScale={def.image_scale ?? undefined}
-                      imageOffsetY={def.image_offset_y ?? undefined}
-                      pointValue={def.point_value}
-                      size={64}
-                      flash={(flashCounts[cs.id] ?? 0) > 0}
-                      onClick={() => setSelected({ chipState: cs, chipDef: def })}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {scores.map(({ player, positivePoints, negativePoints, netScore, chips }) => (
-            <div key={player.id} className="card-casino !p-3">
+          {/* 場のチップ */}
+          <DroppableZone id="field" active={isDragging}>
+            <div className="card-casino !p-3">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-white font-semibold text-lg">{player.name}</span>
-                  {player.id === myPlayerId && <span className="text-base text-green-400">{t.common.you}</span>}
-                  {player.is_host && (
-                    <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">{t.common.host}</span>
-                  )}
-                </div>
-                <div className="text-right shrink-0 ml-2">
-                  <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
-                    {netScore > 0 ? `+${netScore}` : netScore}
-                  </span>
-                  <p className="text-green-600 text-base">+{positivePoints} / -{negativePoints}</p>
-                </div>
+                <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
+                {isHost && (
+                  <button
+                    onClick={() => router.push(`/game/${roomCode}/chips`)}
+                    className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
+                  >
+                    {t.play.manageChips}
+                  </button>
+                )}
               </div>
-              {chips.length === 0 ? (
-                <p className="text-green-800 text-base">{t.common.noChips}</p>
+              {fieldChips.length === 0 ? (
+                <p className="text-green-700 text-base text-center py-1">{t.play.allDistributed}</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {chips.map(chipDef => {
-                    const cs = chipStates.find(s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id);
-                    if (!cs) return null;
+                  {fieldChips.map(cs => {
+                    const def = chipDefs.find(d => d.id === cs.chip_definition_id);
+                    if (!def) return null;
                     return (
-                      <ChipBadge
-                        key={`${cs.id}-${flashCounts[cs.id] ?? 0}`}
-                        name={chipDef.name}
-                        chipType={chipDef.chip_type}
-                        imageUrl={chipDef.image_url}
-                        imageScale={chipDef.image_scale ?? undefined}
-                        imageOffsetY={chipDef.image_offset_y ?? undefined}
-                        pointValue={chipDef.point_value}
-                        size={64}
-                        flash={(flashCounts[cs.id] ?? 0) > 0}
-                        onClick={() => setSelected({ chipState: cs, chipDef })}
-                      />
+                      <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef: def }}>
+                        <ChipBadge
+                          name={def.name}
+                          chipType={def.chip_type}
+                          imageUrl={def.image_url}
+                          imageScale={def.image_scale ?? undefined}
+                          imageOffsetY={def.image_offset_y ?? undefined}
+                          pointValue={def.point_value}
+                          size={64}
+                          flash={(flashCounts[cs.id] ?? 0) > 0}
+                          onClick={() => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef: def }); }}
+                        />
+                      </DraggableChip>
                     );
                   })}
                 </div>
               )}
             </div>
+          </DroppableZone>
+
+          {/* プレイヤーパネル */}
+          {scores.map(({ player, positivePoints, negativePoints, netScore, chips }) => (
+            <DroppableZone key={player.id} id={player.id} active={isDragging}>
+              <div className="card-casino !p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-white font-semibold text-lg">{player.name}</span>
+                    {player.id === myPlayerId && <span className="text-base text-green-400">{t.common.you}</span>}
+                    {player.is_host && (
+                      <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">{t.common.host}</span>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
+                      {netScore > 0 ? `+${netScore}` : netScore}
+                    </span>
+                    <p className="text-green-600 text-base">+{positivePoints} / -{negativePoints}</p>
+                  </div>
+                </div>
+                {chips.length === 0 ? (
+                  <p className="text-green-800 text-base">{t.common.noChips}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {chips.map(chipDef => {
+                      const cs = chipStates.find(s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id);
+                      if (!cs) return null;
+                      return (
+                        <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef }}>
+                          <ChipBadge
+                            name={chipDef.name}
+                            chipType={chipDef.chip_type}
+                            imageUrl={chipDef.image_url}
+                            imageScale={chipDef.image_scale ?? undefined}
+                            imageOffsetY={chipDef.image_offset_y ?? undefined}
+                            pointValue={chipDef.point_value}
+                            size={64}
+                            flash={(flashCounts[cs.id] ?? 0) > 0}
+                            onClick={() => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef }); }}
+                          />
+                        </DraggableChip>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </DroppableZone>
           ))}
 
+          {/* イベントログ */}
           <div className="card-casino !p-3">
             <button
               type="button"
@@ -375,6 +425,63 @@ export default function PlayClient() {
           </div>
         </div>
       </main>
-    </>
+
+      {/* ドラッグ中のフローティングチップ */}
+      <DragOverlay dropAnimation={null}>
+        {dragActiveChip && (
+          <div style={{ filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.6))', opacity: 0.9, cursor: 'grabbing' }}>
+            <ChipBadge
+              name={dragActiveChip.chipDef.name}
+              chipType={dragActiveChip.chipDef.chip_type}
+              imageUrl={dragActiveChip.chipDef.image_url}
+              imageScale={dragActiveChip.chipDef.image_scale ?? undefined}
+              imageOffsetY={dragActiveChip.chipDef.image_offset_y ?? undefined}
+              pointValue={dragActiveChip.chipDef.point_value}
+              size={80}
+            />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+// ---- inner components ----
+
+function DraggableChip({
+  id, data, children,
+}: {
+  id: string;
+  data: ChipSelection;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ opacity: isDragging ? 0.25 : 1, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DroppableZone({
+  id, children, active,
+}: {
+  id: string;
+  children: React.ReactNode;
+  active: boolean;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl transition-all duration-150 ${active && isOver ? 'ring-2 ring-[#d4af37]' : ''}`}
+    >
+      {children}
+    </div>
   );
 }
