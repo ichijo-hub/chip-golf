@@ -79,6 +79,7 @@ export const en: Translations = {
     gameNotFound: 'Game not found. Please check your room code.',
   },
   play: {
+    field: 'Field',
     fieldChips: 'Chips in Play',
     manageChips: 'Chips',
     allDistributed: 'All chips have been distributed',

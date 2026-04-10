@@ -129,6 +129,7 @@ export default function PlayClient() {
     await addDoc(collection(db, 'games', roomCode, 'game_events'), {
       id: '', game_id: roomCode,
       chip_state_id: movedId,
+      chip_definition_id: selected.chipDef.id,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
       hole_number: null,
@@ -348,11 +349,26 @@ export default function PlayClient() {
                 {events.length === 0 ? (
                   <p className="text-green-700 text-lg text-center py-2">{t.play.noEvents}</p>
                 ) : (
-                  events.map((ev) => (
-                    <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">
-                      {ev.description}
-                    </div>
-                  ))
+                  events.map((ev) => {
+                    const chipDef = chipDefs.find(d => d.id === ev.chip_definition_id);
+                    const chipName = chipDef
+                      ? (locale === 'en' ? (chipNamesEn[chipDef.name] ?? chipDef.name) : chipDef.name)
+                      : (ev.description?.split(':')[0] ?? '');
+                    const fromName = ev.from_player_id
+                      ? (players.find(p => p.id === ev.from_player_id)?.name ?? t.play.field)
+                      : t.play.field;
+                    const toName = ev.to_player_id
+                      ? (players.find(p => p.id === ev.to_player_id)?.name ?? t.play.field)
+                      : t.play.field;
+                    const label = chipDef
+                      ? `${chipName}: ${fromName} → ${toName}`
+                      : (ev.description ?? '');
+                    return (
+                      <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">
+                        {label}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}

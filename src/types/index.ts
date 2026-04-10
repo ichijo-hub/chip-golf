@@ -63,6 +63,7 @@ export interface GameEvent {
   id: string;
   game_id: string;
   chip_state_id: string | null;
+  chip_definition_id: string | null;
   from_player_id: string | null;
   to_player_id: string | null;
   hole_number: number | null;

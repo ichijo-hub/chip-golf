@@ -77,6 +77,7 @@ export const ja = {
     gameNotFound: 'ゲームが見つかりません。ルームコードを確認してください。',
   },
   play: {
+    field: '場',
     fieldChips: '場のチップ',
     manageChips: 'チップ管理',
     allDistributed: 'チップはすべて配られています',
