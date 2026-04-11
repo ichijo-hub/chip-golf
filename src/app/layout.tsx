@@ -3,6 +3,7 @@ import { Geist, Fredoka } from 'next/font/google';
 import './globals.css';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import RscFallback from '@/components/RscFallback';
+import ScrollReset from '@/components/ScrollReset';
 import { I18nProvider } from '@/lib/i18n';
 
 const geist = Geist({
@@ -48,6 +49,7 @@ export default function RootLayout({
     <html lang="ja" className={`${geist.variable} ${fredoka.variable}`}>
       <body>
         <RscFallback />
+        <ScrollReset />
         <I18nProvider>
           {children}
         </I18nProvider>
