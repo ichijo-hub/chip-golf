@@ -307,7 +307,7 @@ export default function ChipsManageClient() {
         </div>
       )}
 
-      <main className="min-h-screen p-4 pb-24">
+      <main className="min-h-screen p-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
         <div className="max-w-md mx-auto">
           <div className="flex items-center gap-3 mb-6 pt-4">
             <button onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`); }} className="text-green-400 hover:text-[#d4af37] transition-colors">

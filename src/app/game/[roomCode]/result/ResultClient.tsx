@@ -58,7 +58,7 @@ export default function ResultClient() {
   }
 
   return (
-    <main className="min-h-screen p-4 pb-24">
+    <main className="min-h-screen p-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
       <div className="max-w-md mx-auto">
         <div className="flex justify-end pt-4 mb-2">
           <LangToggle />

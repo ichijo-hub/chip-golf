@@ -284,7 +284,7 @@ export default function PlayClient() {
       )}
 
       <main className="min-h-screen pb-24">
-        <div className="sticky bg-[#145a32] border-b border-green-800 px-3 py-2 z-10" style={{ top: 'env(safe-area-inset-top)' }}>
+        <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: '8px' }}>
           <div className="max-w-md mx-auto flex items-center justify-between">
             <button onClick={() => router.push('/')}><Logo size="sm" /></button>
             <div className="flex items-center gap-2">
