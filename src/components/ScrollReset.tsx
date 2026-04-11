@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
 export default function ScrollReset() {
   const pathname = usePathname();
   useEffect(() => {
-    document.body.scrollTop = 0;
+    document.getElementById('scroll-root')?.scrollTo(0, 0);
   }, [pathname]);
   return null;
 }

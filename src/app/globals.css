@@ -1,17 +1,23 @@
 @import "tailwindcss";
 
-/* iOS セーフエリア対応・バウンススクロール防止 */
-html {
+/* iOS バウンス完全防止: body を position:fixed で固定しウィンドウスクロールを封じる */
+html, body {
   height: 100%;
   background-color: #145a32;
-  overflow: hidden;
 }
 body {
+  position: fixed;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* 実際のスクロールはこのコンテナが担う */
+#scroll-root {
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
-  /* safe-area-top は各コンポーネントで対処。bottom/sides はここで一括 */
+  background-color: var(--casino-green-dark);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
