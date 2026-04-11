@@ -9,6 +9,7 @@ import {
 import {
   DndContext, DragOverlay, MouseSensor, TouchSensor,
   useSensor, useSensors, useDraggable, useDroppable,
+  MeasuringStrategy,
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { db } from '@/lib/firebase/client';
@@ -220,7 +221,13 @@ export default function PlayClient() {
   const scores = game ? calculateScores(players, chipStates, chipDefs) : [];
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+      autoScroll={false}
+    >
       {/* タップ → モーダル */}
       {selected && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setSelected(null)}>
