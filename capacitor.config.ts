@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Chip Golf',
   webDir: 'out',
   ios: {
-    contentInset: 'always',
+    contentInset: 'never', // CSSのenv(safe-area-inset-top)で制御するのでネイティブinsetは不要
   },
 };
 
