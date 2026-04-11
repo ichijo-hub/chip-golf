@@ -69,7 +69,7 @@ export default function HomeClient() {
   }
 
   return (
-    <main className="min-h-screen p-4 pb-16" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
+    <main className="p-4 pb-16" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
       <div className="flex flex-col items-center mb-6 relative">
         <Logo size="md" />
         <div className="absolute right-0 top-0"><LangToggle /></div>

@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
-/* iOS バウンス完全防止: body を position:fixed で固定しウィンドウスクロールを封じる */
-html, body {
-  height: 100%;
+/* iOS バウンス完全防止: body を position:fixed で四辺固定しウィンドウスクロールを封じる */
+html {
   background-color: #145a32;
 }
 body {
   position: fixed;
-  width: 100%;
+  inset: 0; /* top/right/bottom/left を全て0にしてビューポートを完全に覆う */
   overflow: hidden;
+  background-color: #145a32;
 }
 
 /* 実際のスクロールはこのコンテナが担う */
 #scroll-root {
+  width: 100%;
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: none;
