@@ -119,6 +119,14 @@ export default function HomeClient() {
           {t.home.createGame}
         </button>
 
+        <button
+          onClick={() => router.push('/demo')}
+          className="w-full py-3 rounded-lg border border-green-600 text-green-300
+                     hover:border-green-500 hover:text-green-200 transition-colors text-base font-medium"
+        >
+          🎮 デモで試す
+        </button>
+
         <div className="card-casino !p-3">
           <p className="text-[#d4af37] font-semibold text-sm mb-2 text-center">{t.home.joinWithCode}</p>
           <form onSubmit={handleJoin} className="flex gap-2">

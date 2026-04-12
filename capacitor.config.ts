@@ -5,7 +5,19 @@ const config: CapacitorConfig = {
   appName: 'Chip Golf',
   webDir: 'out',
   ios: {
-    contentInset: 'never', // CSSのenv(safe-area-inset-top)で制御するのでネイティブinsetは不要
+    contentInset: 'never',
+  },
+  plugins: {
+    AdMob: {
+      appId: 'ca-app-pub-8709651001247712~8920333898',
+      initializeForAdRequest: true,
+    },
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: '#145a32',
+      showSpinner: false,
+    },
   },
 };
 

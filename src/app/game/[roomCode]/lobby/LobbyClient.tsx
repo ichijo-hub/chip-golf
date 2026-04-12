@@ -56,7 +56,8 @@ export default function LobbyClient() {
   }, [roomCode, router]);
 
   useEffect(() => {
-    setLobbyUrl(window.location.href);
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    setLobbyUrl(`${baseUrl}/game/__placeholder__/lobby?room=${roomCode}`);
     const savedId = localStorage.getItem(`player_${roomCode}`);
     if (savedId) setMyPlayerId(savedId);
     loadGame();

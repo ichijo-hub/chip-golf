@@ -11,6 +11,7 @@ import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
+import AdBanner from '@/components/AdBanner';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -103,6 +104,7 @@ export default function ResultClient() {
           </button>
         </div>
       </div>
+      <AdBanner />
     </main>
   );
 }
