@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  DndContext,
+  DragEndEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+import ChipBadge from '@/components/ChipBadge';
 
 // ---- 型定義 ----
 type Owner = 'field' | 'you' | 'cpu';
@@ -31,38 +43,65 @@ function getScoreLabel(score: number): string {
   return String(score);
 }
 
-// ---- チップコンポーネント ----
-function ChipToken({
+// ---- DraggableChip ----
+function DraggableChip({
   name,
   type,
   highlight,
-  onTap,
-  selected,
+  disabled,
 }: {
   name: string;
   type: 'positive' | 'negative';
   highlight?: boolean;
-  onTap?: () => void;
-  selected?: boolean;
+  disabled?: boolean;
 }) {
-  const base = type === 'positive' ? 'bg-[#d4af37] text-white' : 'bg-red-700 text-white';
-  const ring = highlight || selected ? 'ring-2 ring-[#d4af37] ring-offset-2 ring-offset-[#0d3320]' : '';
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: name,
+    disabled,
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none',
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onTap}
-      className={`
-        w-14 h-14 rounded-full flex items-center justify-center
-        text-xs font-bold text-center leading-tight
-        transition-all duration-500 shrink-0
-        ${base} ${ring}
-        ${onTap ? 'active:scale-95' : ''}
-        ${selected ? 'scale-110' : ''}
-      `}
-      style={{ minWidth: '3.5rem' }}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={highlight ? 'ring-2 ring-[#d4af37] ring-offset-2 ring-offset-[#0d3320] rounded-full' : ''}
     >
-      {name}
-    </button>
+      <ChipBadge
+        name={name}
+        chipType={type}
+        size={56}
+        showLabel={true}
+      />
+    </div>
+  );
+}
+
+// ---- DroppableZone ----
+function DroppableZone({
+  id,
+  children,
+  className,
+}: {
+  id: 'you' | 'cpu';
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`${className ?? ''} ${isOver ? 'ring-2 ring-[#d4af37]' : ''}`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -70,15 +109,11 @@ function ChipToken({
 function GameBoard({
   chipOwners,
   step,
-  pendingTap,
-  onChipTap,
-  onZoneTap,
+  showScores,
 }: {
   chipOwners: ChipOwners;
   step: number;
-  pendingTap: string | null;
-  onChipTap: (name: string) => void;
-  onZoneTap: (zone: 'you' | 'cpu') => void;
+  showScores: boolean;
 }) {
   const fieldChips = CHIPS.filter(c => chipOwners[c.name] === 'field');
   const youChips = CHIPS.filter(c => chipOwners[c.name] === 'you');
@@ -86,12 +121,10 @@ function GameBoard({
   const youScore = calcScore(chipOwners, 'you');
   const cpuScore = calcScore(chipOwners, 'cpu');
 
-  const isStep3 = step === 3;
-  const showScores = step >= 7;
+  const isDndStep = step === 3 || step === 5;
 
-  const parChip = CHIPS.find(c => c.name === 'パー')!;
-  const isParHighlighted = isStep3 && chipOwners['パー'] === 'field';
-  const isYouZoneHighlighted = isStep3 && pendingTap === 'パー';
+  // Step3: パーをハイライト、Step5: バーディーをハイライト
+  const highlightChip = step === 3 ? 'パー' : step === 5 ? 'バーディー' : null;
 
   return (
     <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-3 max-w-md mx-auto w-full">
@@ -101,19 +134,14 @@ function GameBoard({
         {fieldChips.length === 0 ? (
           <p className="text-green-700 text-xs text-center py-1">すべて配布済み</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {fieldChips.map(chip => (
-              <ChipToken
+              <DraggableChip
                 key={chip.name}
                 name={chip.name}
                 type={chip.type}
-                highlight={isStep3 && chip.name === 'パー'}
-                selected={pendingTap === chip.name}
-                onTap={
-                  isStep3 && chip.name === 'パー'
-                    ? () => onChipTap(chip.name)
-                    : undefined
-                }
+                highlight={highlightChip === chip.name}
+                disabled={!isDndStep}
               />
             ))}
           </div>
@@ -121,13 +149,9 @@ function GameBoard({
       </div>
 
       {/* あなたゾーン */}
-      <button
-        type="button"
-        onClick={() => isYouZoneHighlighted && onZoneTap('you')}
-        className={`
-          w-full bg-[#145a32]/80 rounded-xl p-3 border text-left transition-all
-          ${isYouZoneHighlighted ? 'border-[#d4af37] ring-1 ring-[#d4af37]' : 'border-green-800'}
-        `}
+      <DroppableZone
+        id="you"
+        className="w-full bg-[#145a32]/80 rounded-xl p-3 border border-green-800 transition-all"
       >
         <div className="flex items-center justify-between mb-2">
           <p className="text-white font-semibold text-sm">
@@ -138,23 +162,32 @@ function GameBoard({
               </span>
             )}
           </p>
-          {isYouZoneHighlighted && (
-            <span className="text-[#d4af37] text-xs animate-pulse">👈 ここへ移動</span>
+          {isDndStep && (
+            <span className="text-[#d4af37] text-xs animate-pulse">👈 ここへドロップ</span>
           )}
         </div>
         {youChips.length === 0 ? (
           <p className="text-green-700 text-xs">チップなし</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {youChips.map(chip => (
-              <ChipToken key={chip.name} name={chip.name} type={chip.type} />
+              <ChipBadge
+                key={chip.name}
+                name={chip.name}
+                chipType={chip.type}
+                size={56}
+                showLabel={true}
+              />
             ))}
           </div>
         )}
-      </button>
+      </DroppableZone>
 
       {/* CPUゾーン */}
-      <div className="bg-[#145a32]/80 rounded-xl p-3 border border-green-800">
+      <DroppableZone
+        id="cpu"
+        className="w-full bg-[#145a32]/80 rounded-xl p-3 border border-green-800 transition-all"
+      >
         <div className="flex items-center justify-between mb-2">
           <p className="text-white font-semibold text-sm">
             CPU
@@ -168,13 +201,19 @@ function GameBoard({
         {cpuChips.length === 0 ? (
           <p className="text-green-700 text-xs">チップなし</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             {cpuChips.map(chip => (
-              <ChipToken key={chip.name} name={chip.name} type={chip.type} />
+              <ChipBadge
+                key={chip.name}
+                name={chip.name}
+                chipType={chip.type}
+                size={56}
+                showLabel={true}
+              />
             ))}
           </div>
         )}
-      </div>
+      </DroppableZone>
     </div>
   );
 }
@@ -202,7 +241,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 // ---- メインコンポーネント ----
 export default function DemoSetupClient() {
   const router = useRouter();
-  const TOTAL_STEPS = 8;
+  const TOTAL_STEPS = 9;
 
   const [step, setStep] = useState(1);
   const [chipOwners, setChipOwners] = useState<ChipOwners>({
@@ -213,9 +252,14 @@ export default function DemoSetupClient() {
     '3パット': 'field',
     'チップイン': 'field',
   });
-  const [pendingTap, setPendingTap] = useState<string | null>(null);
   const [nextBtnVisible, setNextBtnVisible] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } }),
+  );
 
   // Step 4: OB → CPU 自動移動
   useEffect(() => {
@@ -229,19 +273,19 @@ export default function DemoSetupClient() {
     return () => clearTimeout(t1);
   }, [step]);
 
-  // Step 5: バーディー→あなた, 3パット→CPU を順番に自動移動
+  // Step 6: 3パット→CPU, 1パット→you を自動移動
   useEffect(() => {
-    if (step !== 5) return;
+    if (step !== 6) return;
     setNextBtnVisible(false);
     const t1 = setTimeout(() => {
-      setChipOwners(prev => ({ ...prev, 'バーディー': 'you' }));
+      setChipOwners(prev => ({ ...prev, '3パット': 'cpu' }));
     }, 1000);
     const t2 = setTimeout(() => {
-      setChipOwners(prev => ({ ...prev, '3パット': 'cpu' }));
-    }, 2500);
+      setChipOwners(prev => ({ ...prev, '1パット': 'you' }));
+    }, 2000);
     const t3 = setTimeout(() => {
       setNextBtnVisible(true);
-    }, 3500);
+    }, 3000);
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -249,45 +293,55 @@ export default function DemoSetupClient() {
     };
   }, [step]);
 
-  // Step 6: パー → CPU 自動移動
+  // Step 7: パー → CPU 自動移動
   useEffect(() => {
-    if (step !== 6) return;
+    if (step !== 7) return;
     setNextBtnVisible(false);
     const t1 = setTimeout(() => {
       setChipOwners(prev => ({ ...prev, 'パー': 'cpu' }));
-      const t2 = setTimeout(() => setStep(7), 1500);
+      const t2 = setTimeout(() => setStep(8), 1500);
       return () => clearTimeout(t2);
     }, 1000);
     return () => clearTimeout(t1);
   }, [step]);
 
-  // ステップ変更時にnextBtnをリセット（Step 4,5,6以外）
+  // ステップ変更時にnextBtnをリセット（自動アニメーションステップ以外）
   useEffect(() => {
-    if (step !== 4 && step !== 5 && step !== 6) {
+    if (step !== 4 && step !== 6 && step !== 7) {
       setNextBtnVisible(true);
     }
     setErrorMsg(null);
-    setPendingTap(null);
   }, [step]);
 
-  function handleChipTap(name: string) {
-    setPendingTap(name);
-    setErrorMsg(null);
-  }
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    const chipName = active.id as string;
+    const targetZone = over.id as 'you' | 'cpu';
 
-  function handleZoneTap(zone: 'you' | 'cpu') {
-    if (!pendingTap) return;
+    // 場にあるチップのみ受け付ける
+    if (chipOwners[chipName] !== 'field') return;
+
     if (step === 3) {
-      if (zone === 'you') {
-        setChipOwners(prev => ({ ...prev, [pendingTap]: 'you' }));
-        setPendingTap(null);
-        // 少し遅らせてからStep 4へ
-        setTimeout(() => setStep(4), 600);
-      } else {
-        setErrorMsg('あなたのゾーンへ移動してください');
+      if (chipName !== 'パー' || targetZone !== 'you') {
+        setErrorMsg('パーのチップを「あなた」のゾーンへ移動してください');
+        return;
       }
+      setChipOwners(prev => ({ ...prev, 'パー': 'you' }));
+      setErrorMsg(null);
+      setTimeout(() => setStep(4), 600);
+    } else if (step === 5) {
+      if (chipName !== 'バーディー' || targetZone !== 'you') {
+        setErrorMsg('バーディーのチップを「あなた」のゾーンへ移動してください');
+        return;
+      }
+      setChipOwners(prev => ({ ...prev, 'バーディー': 'you' }));
+      setErrorMsg(null);
+      setTimeout(() => setStep(6), 600);
     }
   }
+
+  const showScores = step >= 8;
 
   const STEP_TEXT: Record<number, React.ReactNode> = {
     1: (
@@ -306,7 +360,7 @@ export default function DemoSetupClient() {
           例えば、あなたがパーを取りました 👏
         </p>
         <p className="text-[#d4af37] text-sm font-semibold">
-          パーのチップを「あなた」のゾーンへ動かしてみてください
+          パーのチップを「あなた」のゾーンへ移動させてください
         </p>
         {errorMsg && (
           <p className="text-red-400 text-sm">{errorMsg}</p>
@@ -324,20 +378,33 @@ export default function DemoSetupClient() {
     5: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">
-          このようにホールごとのイベントに応じてチップを移動させていきます
+          今度はバーディーが出ました！ 🎉
         </p>
-        <p className="text-green-400 text-sm">続きを見てみましょう 👇</p>
+        <p className="text-[#d4af37] text-sm font-semibold">
+          バーディーのチップを「あなた」のゾーンへ移動させてください
+        </p>
+        {errorMsg && (
+          <p className="text-red-400 text-sm">{errorMsg}</p>
+        )}
       </div>
     ),
     6: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">
-          次のホールでCPUがパーを取りました
+          3パットしてしまったのでCPUへ、1パットを決めたのでもう1枚あなたへ 🏌️
         </p>
-        <p className="text-green-400 text-sm">パーチップは「あなた」から「CPU」へ移動します</p>
+        <p className="text-green-400 text-sm">チップが自動で移動します</p>
       </div>
     ),
     7: (
+      <div className="space-y-2">
+        <p className="text-green-100 text-base leading-relaxed">
+          次のホールでCPUがパーを取りました
+        </p>
+        <p className="text-green-400 text-sm">パーチップが「あなた」から「CPU」へ移動します</p>
+      </div>
+    ),
+    8: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">
           こうしてイベントごとにチップが行き来し、最終的なチップ合計点数で勝負が決まります
@@ -348,74 +415,110 @@ export default function DemoSetupClient() {
         </div>
       </div>
     ),
-    8: (
+    9: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed font-semibold">
-          運と実力が絡み合うChipGolf ⛳🎰
+          ゲームが終わったら「ゲーム終了」ボタンを押しましょう
         </p>
-        <p className="text-green-300 text-sm">次回のラウンドをもっと盛り上げよう！</p>
+        <p className="text-green-300 text-sm">すると最終順位が表示されます 🏆</p>
       </div>
     ),
   };
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col max-w-md mx-auto"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
-    >
-      {/* オーバーレイ（モーダル背景を少し暗くするが、ボードは見える） */}
-      <div className="fixed inset-0 bg-black/30 pointer-events-none" />
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div
+        className="fixed inset-0 flex flex-col max-w-md mx-auto"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        {/* オーバーレイ（モーダル背景を少し暗くするが、ボードは見える） */}
+        <div className="fixed inset-0 bg-black/30 pointer-events-none" />
 
-      {/* ゲームボード（背景スクロール可） */}
-      <GameBoard
-        chipOwners={chipOwners}
-        step={step}
-        pendingTap={pendingTap}
-        onChipTap={handleChipTap}
-        onZoneTap={handleZoneTap}
-      />
+        {/* ゲームボード（背景スクロール可） */}
+        <GameBoard
+          chipOwners={chipOwners}
+          step={step}
+          showScores={showScores}
+        />
 
-      {/* チュートリアルモーダル（下部固定シート） */}
-      <div className="relative z-10 bg-[#0d3320] border-t border-green-700 rounded-t-2xl p-5 shadow-2xl">
-        <StepDots current={step} total={TOTAL_STEPS} />
+        {/* チュートリアルモーダル（下部固定シート） */}
+        <div className="relative z-10 bg-[#0d3320] border-t border-green-700 rounded-t-2xl p-5 shadow-2xl">
+          <StepDots current={step} total={TOTAL_STEPS} />
 
-        <div className="min-h-[80px] mb-4">
-          {STEP_TEXT[step]}
-        </div>
-
-        {/* ボタンエリア */}
-        {step === 3 ? (
-          // Step 3: インタラクション待ち（ボタンなし）
-          <div className="text-center text-green-600 text-sm py-2">
-            ↑ チップをタップして操作してみましょう
+          <div className="min-h-[80px] mb-4">
+            {STEP_TEXT[step]}
           </div>
-        ) : step === 8 ? (
-          <div className="space-y-3">
+
+          {/* ボタンエリア */}
+          {step === 3 || step === 5 ? (
+            // DnDインタラクション待ち（ボタンなし）
+            <div className="text-center text-green-600 text-sm py-2">
+              ↑ チップをドラッグして移動してみましょう
+            </div>
+          ) : step === 9 ? (
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowResult(true)}
+                className="w-full py-3 rounded-lg bg-red-800 text-white font-bold hover:bg-red-700 transition-colors"
+              >
+                ゲーム終了
+              </button>
+            </div>
+          ) : nextBtnVisible ? (
             <button
-              onClick={() => router.push('/game/new')}
+              onClick={() => setStep(s => s + 1)}
               className="btn-gold w-full py-3 text-base"
             >
-              ゲームを作成する
+              次へ
             </button>
-            <button
-              onClick={() => router.push('/')}
-              className="w-full text-green-400 text-sm py-2 text-center hover:text-green-300 transition-colors"
-            >
-              ← トップに戻る
-            </button>
-          </div>
-        ) : nextBtnVisible ? (
-          <button
-            onClick={() => setStep(s => s + 1)}
-            className="btn-gold w-full py-3 text-base"
-          >
-            次へ
-          </button>
-        ) : (
-          // アニメーション中: 何も表示しない（高さ確保）
-          <div className="h-12" />
-        )}
+          ) : (
+            // アニメーション中: 高さ確保
+            <div className="h-12" />
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* リザルトモーダル */}
+      {showResult && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#0d3320] border border-green-700 rounded-2xl p-6 w-full max-w-sm">
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-2">🏆</div>
+              <h2 className="text-[#d4af37] font-bold text-xl">最終結果</h2>
+            </div>
+            {(() => {
+              const youScore = calcScore(chipOwners, 'you');
+              const cpuScore = calcScore(chipOwners, 'cpu');
+              const players = [
+                { name: 'あなた', score: youScore },
+                { name: 'CPU', score: cpuScore },
+              ].sort((a, b) => b.score - a.score);
+              const medals = ['🥇', '🥈'];
+              return (
+                <div className="space-y-3 mb-6">
+                  {players.map((p, i) => (
+                    <div key={p.name} className="flex items-center gap-3 bg-[#145a32] rounded-xl p-3">
+                      <span className="text-2xl">{medals[i]}</span>
+                      <span className="flex-1 text-white font-semibold">{p.name}</span>
+                      <span className={`font-bold text-lg ${p.score > 0 ? 'text-[#d4af37]' : p.score < 0 ? 'text-red-400' : 'text-white'}`}>
+                        {p.score > 0 ? `+${p.score}` : p.score}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            <div className="space-y-3">
+              <button onClick={() => router.push('/game/new')} className="btn-gold w-full py-3 text-base">
+                ゲームを作成する
+              </button>
+              <button onClick={() => router.push('/')} className="w-full text-green-400 text-sm py-2 text-center">
+                ← トップに戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </DndContext>
   );
 }
