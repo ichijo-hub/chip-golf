@@ -70,11 +70,11 @@ const STEP_STATES: Record<string, ChipOwners> = {
 // DnDルール: ステップ→{移動すべきチップ, 移動先, エラー文}
 const DND_RULES: Record<string, { chip: string; target: Owner; error: string }> = {
   '3':  { chip: 'パー',      target: 'you', error: 'パーのチップを「あなた」のゾーンへ移動してください' },
-  '4':  { chip: 'OB',       target: 'cpu', error: 'OBのチップを「CPU」のゾーンへ移動してください' },
+  '4':  { chip: 'OB',       target: 'cpu', error: 'OBのチップを「Bさん」のゾーンへ移動してください' },
   '5':  { chip: 'バーディー', target: 'you', error: 'バーディーのチップを「あなた」のゾーンへ移動してください' },
-  '6a': { chip: '3パット',   target: 'cpu', error: '3パットのチップを「CPU」のゾーンへ移動してください' },
+  '6a': { chip: '3パット',   target: 'cpu', error: '3パットのチップを「Bさん」のゾーンへ移動してください' },
   '6b': { chip: '1パット',   target: 'you', error: '1パットのチップを「あなた」のゾーンへ移動してください' },
-  '7':  { chip: 'パー',      target: 'cpu', error: 'パーのチップを「CPU」のゾーンへ移動してください' },
+  '7':  { chip: 'パー',      target: 'cpu', error: 'パーのチップを「Bさん」のゾーンへ移動してください' },
 };
 
 // Step表示番号（ドットインジケーター用）
@@ -93,6 +93,7 @@ function prevStep(step: Step): Step {
   return (n - 1) as Step;
 }
 function nextStep(step: Step): Step {
+  if (step === 5) return '6a';
   if (step === '6a') return '6b';
   if (step === '6b') return 7;
   const n = step as number;
@@ -262,7 +263,7 @@ export default function DemoSetupClient() {
   // スコア順ソート（実際のゲームと同じ）
   const playerPanels = [
     { label: 'あなた', chips: youChips, score: youScore },
-    { label: 'CPU',   chips: cpuChips, score: cpuScore },
+    { label: 'Bさん',   chips: cpuChips, score: cpuScore },
   ].sort((a, b) => b.score - a.score);
 
   const STEP_TEXT: Record<string, React.ReactNode> = {
@@ -277,8 +278,8 @@ export default function DemoSetupClient() {
     ),
     '4': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">次はCPUがOBを打ってしまいました 😱</p>
-        <p className="text-[#d4af37] text-sm font-semibold">OBチップを「CPU」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">次はBさんがOBを打ってしまいました 😱</p>
+        <p className="text-[#d4af37] text-sm font-semibold">OBチップを「Bさん」のゾーンへ移動させてください</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
@@ -292,7 +293,7 @@ export default function DemoSetupClient() {
     '6a': (
       <div className="space-y-1">
         <p className="text-green-100 text-base leading-relaxed">3パットしてしまいました 😓</p>
-        <p className="text-[#d4af37] text-sm font-semibold">3パットのチップを「CPU」のゾーンへ移動させてください</p>
+        <p className="text-[#d4af37] text-sm font-semibold">3パットのチップを「Bさん」のゾーンへ移動させてください</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
@@ -305,8 +306,8 @@ export default function DemoSetupClient() {
     ),
     '7': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">次のホールでCPUがパーを取りました</p>
-        <p className="text-[#d4af37] text-sm font-semibold">パーチップを「CPU」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">次のホールでBさんがパーを取りました</p>
+        <p className="text-[#d4af37] text-sm font-semibold">パーチップを「Bさん」のゾーンへ移動させてください</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
@@ -442,7 +443,7 @@ export default function DemoSetupClient() {
             <div className="space-y-3 mb-5">
               {[
                 { name: 'あなた', score: youScore },
-                { name: 'CPU',   score: cpuScore },
+                { name: 'Bさん',   score: cpuScore },
               ].sort((a, b) => b.score - a.score).map((p, i) => (
                 <div key={p.name} className="flex items-center gap-3 bg-[#145a32] rounded-xl p-3">
                   <span className="text-2xl">{['🥇','🥈'][i]}</span>
