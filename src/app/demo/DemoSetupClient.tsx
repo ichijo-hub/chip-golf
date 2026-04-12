@@ -45,16 +45,18 @@ function getScoreLabel(score: number): string {
 }
 
 // 各ステップ開始時のチップ配置（戻るボタン用）
+const FIELD_ALL: ChipOwners = { 'パー': 'field', 'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' };
 const STEP_INITIAL_STATES: Record<number, ChipOwners> = {
-  1: { 'パー': 'field', 'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  2: { 'パー': 'field', 'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  3: { 'パー': 'field', 'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  4: { 'パー': 'you',   'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  5: { 'パー': 'you',   'バーディー': 'field', 'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  6: { 'パー': 'you',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
-  7: { 'パー': 'you',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
-  8: { 'パー': 'cpu',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
-  9: { 'パー': 'cpu',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
+  1:  { ...FIELD_ALL },
+  2:  { ...FIELD_ALL },
+  3:  { ...FIELD_ALL },
+  4:  { ...FIELD_ALL },
+  5:  { 'パー': 'you',   'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
+  6:  { 'パー': 'you',   'バーディー': 'field', 'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
+  7:  { 'パー': 'you',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
+  8:  { 'パー': 'you',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
+  9:  { 'パー': 'cpu',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
+  10: { 'パー': 'cpu',   'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
 };
 
 // ---- DraggableChip ----
@@ -106,8 +108,8 @@ function GameBoard({ chipOwners, step, showScores }: {
   const cpuChips   = CHIPS.filter(c => chipOwners[c.name] === 'cpu');
   const youScore = calcScore(chipOwners, 'you');
   const cpuScore = calcScore(chipOwners, 'cpu');
-  const isDndStep = step === 3 || step === 5;
-  const highlightChip = step === 3 ? 'パー' : step === 5 ? 'バーディー' : null;
+  const isDndStep = step === 4 || step === 6;
+  const highlightChip = step === 4 ? 'パー' : step === 6 ? 'バーディー' : null;
 
   return (
     <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-3 max-w-md mx-auto w-full">
@@ -200,7 +202,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 // ---- メインコンポーネント ----
 export default function DemoSetupClient() {
   const router = useRouter();
-  const TOTAL_STEPS = 9;
+  const TOTAL_STEPS = 10;
 
   const [step, setStep] = useState(1);
   const [chipOwners, setChipOwners] = useState<ChipOwners>(STEP_INITIAL_STATES[1]);
@@ -213,9 +215,9 @@ export default function DemoSetupClient() {
     useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } }),
   );
 
-  // Step 4: OB → CPU 自動移動（次へは手動）
+  // Step 5: OB → CPU 自動移動（次へは手動）
   useEffect(() => {
-    if (step !== 4) return;
+    if (step !== 5) return;
     setNextBtnVisible(false);
     const t = setTimeout(() => {
       setChipOwners(prev => ({ ...prev, 'OB': 'cpu' }));
@@ -224,9 +226,9 @@ export default function DemoSetupClient() {
     return () => clearTimeout(t);
   }, [step]);
 
-  // Step 6: 3パット→CPU, 1パット→you 自動移動（次へは手動）
+  // Step 7: 3パット→CPU, 1パット→you 自動移動（次へは手動）
   useEffect(() => {
-    if (step !== 6) return;
+    if (step !== 7) return;
     setNextBtnVisible(false);
     const t1 = setTimeout(() => setChipOwners(prev => ({ ...prev, '3パット': 'cpu' })), 1000);
     const t2 = setTimeout(() => setChipOwners(prev => ({ ...prev, '1パット': 'you' })), 2000);
@@ -234,9 +236,9 @@ export default function DemoSetupClient() {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [step]);
 
-  // Step 7: パー → CPU 自動移動（次へは手動）
+  // Step 8: パー → CPU 自動移動（次へは手動）
   useEffect(() => {
-    if (step !== 7) return;
+    if (step !== 8) return;
     setNextBtnVisible(false);
     const t = setTimeout(() => {
       setChipOwners(prev => ({ ...prev, 'パー': 'cpu' }));
@@ -271,61 +273,77 @@ export default function DemoSetupClient() {
     const targetZone = over.id as 'you' | 'cpu';
     if (chipOwners[chipName] !== 'field') return;
 
-    if (step === 3) {
+    if (step === 4) {
       if (chipName !== 'パー' || targetZone !== 'you') {
         setErrorMsg('パーのチップを「あなた」のゾーンへ移動してください');
         return;
       }
       setChipOwners(prev => ({ ...prev, 'パー': 'you' }));
       setErrorMsg(null);
-      setTimeout(() => setStep(4), 600);
-    } else if (step === 5) {
+      setTimeout(() => setStep(5), 600);
+    } else if (step === 6) {
       if (chipName !== 'バーディー' || targetZone !== 'you') {
         setErrorMsg('バーディーのチップを「あなた」のゾーンへ移動してください');
         return;
       }
       setChipOwners(prev => ({ ...prev, 'バーディー': 'you' }));
       setErrorMsg(null);
-      setTimeout(() => setStep(6), 600);
+      setTimeout(() => setStep(7), 600);
     }
   }
 
   const STEP_TEXT: Record<number, React.ReactNode> = {
     1: <p className="text-green-100 text-base leading-relaxed">ChipGolfは実際のゴルフ場で仲間と楽しむアプリです ⛳</p>,
-    2: <p className="text-green-100 text-base leading-relaxed">チップに対応するイベントが発生したら、そのチップをイベントを起こした人のゾーンに移動します</p>,
-    3: (
+    2: (
+      <div className="space-y-3">
+        <p className="text-green-100 text-base leading-relaxed">
+          プレイする全員がアプリを入れれば、それぞれのスマホで <span className="text-[#d4af37] font-semibold">リアルタイムに状況を確認</span> できます 📱
+        </p>
+        <div className="flex justify-center gap-4 py-1">
+          {['Aさん', 'Bさん', 'Cさん'].map(name => (
+            <div key={name} className="flex flex-col items-center gap-1">
+              <div className="w-10 h-16 rounded-xl bg-[#145a32] border border-green-600 flex items-center justify-center text-lg">📱</div>
+              <span className="text-green-400 text-xs">{name}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-green-300 text-sm text-center">チップを動かすのも誰でもOK 👆</p>
+      </div>
+    ),
+    3: <p className="text-green-100 text-base leading-relaxed">チップに対応するイベントが発生したら、そのチップをイベントを起こした人のゾーンに移動します</p>,
+    4: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">例えば、あなたがパーを取りました 👏</p>
         <p className="text-[#d4af37] text-sm font-semibold">パーのチップを「あなた」のゾーンへ移動させてください</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
-    4: (
+    5: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">グッド！ 次はCPUがOBを打ってしまいました 😱</p>
         <p className="text-green-400 text-sm">OBチップが自動でCPUのゾーンへ移動します</p>
       </div>
     ),
-    5: (
+    6: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">今度はバーディーが出ました！ 🎉</p>
         <p className="text-[#d4af37] text-sm font-semibold">バーディーのチップを「あなた」のゾーンへ移動させてください</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
-    6: (
+    7: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">3パットしてしまったのでCPUへ、1パットを決めたのでもう1枚あなたへ 🏌️</p>
         <p className="text-green-400 text-sm">チップが自動で移動します</p>
       </div>
     ),
-    7: (
+    8: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">次のホールでCPUがパーを取りました</p>
         <p className="text-green-400 text-sm">パーチップが「あなた」から「CPU」へ移動します</p>
       </div>
     ),
-    8: (
+    9: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">こうしてイベントごとにチップが行き来し、最終的なチップ合計点数で勝負が決まります</p>
         <div className="text-sm space-y-1">
@@ -334,7 +352,7 @@ export default function DemoSetupClient() {
         </div>
       </div>
     ),
-    9: (
+    10: (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed font-semibold">ゲームが終わったら「ゲーム終了」ボタンを押しましょう</p>
         <p className="text-green-300 text-sm">すると最終順位が表示されます 🏆</p>
@@ -358,14 +376,14 @@ export default function DemoSetupClient() {
           </div>
 
           {/* ボタンエリア */}
-          {step === 3 || step === 5 ? (
+          {step === 4 || step === 6 ? (
             <div className="space-y-3">
               <div className="text-center text-green-600 text-sm py-1">↑ チップをドラッグして移動してみましょう</div>
               <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">
                 ← 戻る
               </button>
             </div>
-          ) : step === 9 ? (
+          ) : step === 10 ? (
             <div className="space-y-3">
               <button onClick={() => setShowResult(true)} className="w-full py-3 rounded-lg bg-red-800 text-white font-bold hover:bg-red-700 transition-colors">
                 ゲーム終了
