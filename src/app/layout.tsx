@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Fredoka } from 'next/font/google';
 import './globals.css';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import UniversalLinkHandler from '@/components/UniversalLinkHandler';
 import RscFallback from '@/components/RscFallback';
 import ScrollReset from '@/components/ScrollReset';
 import { I18nProvider } from '@/lib/i18n';
@@ -54,6 +55,7 @@ export default function RootLayout({
           <I18nProvider>
             {children}
           </I18nProvider>
+          <UniversalLinkHandler />
           <ServiceWorkerRegister />
         </div>
       </body>
