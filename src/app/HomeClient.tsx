@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+
+const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false });
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { loadHistory } from '@/lib/gameHistory';
@@ -22,6 +25,7 @@ export default function HomeClient() {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   useEffect(() => {
     async function loadActiveGames() {
@@ -47,6 +51,12 @@ export default function HomeClient() {
     }
     loadActiveGames();
   }, []);
+
+  const handleQRScan = useCallback((code: string) => {
+    setShowQRScanner(false);
+    localStorage.setItem('currentRoomCode', code);
+    router.push(`/game/__placeholder__/lobby?room=${code}`);
+  }, [router]);
 
   function handleJoin(e: React.FormEvent) {
     e.preventDefault();
@@ -124,7 +134,7 @@ export default function HomeClient() {
           className="w-full py-3 rounded-lg border border-green-600 text-green-300
                      hover:border-green-500 hover:text-green-200 transition-colors text-base font-medium"
         >
-          🎮 デモで試す
+          {t.home.tryDemo}
         </button>
 
         <div className="card-casino !p-3">
@@ -141,6 +151,22 @@ export default function HomeClient() {
                          tracking-widest focus:outline-none focus:border-[#d4af37] min-w-0"
             />
             <button
+              type="button"
+              onClick={() => setShowQRScanner(true)}
+              className="bg-[#145a32] hover:bg-green-800 text-white
+                         px-3 py-2.5 rounded-lg border border-green-700 transition-colors shrink-0"
+              aria-label={t.home.scanQR}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                   className="w-5 h-5">
+                <rect x="3" y="3" width="7" height="7" />
+                <rect x="14" y="3" width="7" height="7" />
+                <rect x="3" y="14" width="7" height="7" />
+                <path d="M14 14h1v1h-1zM17 14h1v1h-1zM14 17h1v1h-1zM17 17h1v1h-1zM20 14h1v1h-1zM20 17h1v3h-3v-1h1v-1h1v-1zM14 20h3v1h-3z" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+            <button
               type="submit"
               className="bg-green-700 hover:bg-green-600 text-white font-semibold
                          px-4 py-2.5 rounded-lg border border-green-600 transition-colors shrink-0"
@@ -151,6 +177,10 @@ export default function HomeClient() {
           {error && <p className="text-red-400 text-xs mt-1.5 text-center">{error}</p>}
         </div>
       </div>
+
+      {showQRScanner && (
+        <QRScanner onScan={handleQRScan} onClose={() => setShowQRScanner(false)} />
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4 pb-8">
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">

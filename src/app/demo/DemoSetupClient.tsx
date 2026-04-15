@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import ChipBadge from '@/components/ChipBadge';
+import { useT } from '@/lib/i18n';
 
 type Owner = 'field' | 'you' | 'cpu';
 type ChipOwners = Record<string, Owner>;
@@ -46,7 +47,7 @@ function scoreLabel(n: number) { return n > 0 ? `+${n}` : String(n); }
 // 10 ゲーム終了
 
 // 内部ステップ（6aと6bを分けて管理）
-type Step = 1|2|3|4|5|'6a'|'6b'|7|8|9|10;
+type Step = 1|2|3|4|'4b'|5|'6a'|'6b'|7|8|9|10;
 
 const FIELD_ALL: ChipOwners = {
   'パー': 'field', 'バーディー': 'field', 'OB': 'field',
@@ -58,6 +59,7 @@ const STEP_STATES: Record<string, ChipOwners> = {
   '2':  { ...FIELD_ALL },
   '3':  { ...FIELD_ALL },
   '4':  { 'パー': 'you',  'バーディー': 'field', 'OB': 'field', '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
+  '4b': { 'パー': 'you',  'バーディー': 'field', 'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
   '5':  { 'パー': 'you',  'バーディー': 'field', 'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
   '6a': { 'パー': 'you',  'バーディー': 'you',   'OB': 'cpu',   '1パット': 'field', '3パット': 'field', 'チップイン': 'field' },
   '6b': { 'パー': 'you',  'バーディー': 'you',   'OB': 'cpu',   '1パット': 'field', '3パット': 'cpu',   'チップイン': 'field' },
@@ -67,25 +69,19 @@ const STEP_STATES: Record<string, ChipOwners> = {
   '10': { 'パー': 'cpu',  'バーディー': 'you',   'OB': 'cpu',   '1パット': 'you',   '3パット': 'cpu',   'チップイン': 'field' },
 };
 
-// DnDルール: ステップ→{移動すべきチップ, 移動先, エラー文}
-const DND_RULES: Record<string, { chip: string; target: Owner; error: string }> = {
-  '3':  { chip: 'パー',      target: 'you', error: 'パーのチップを「あなた」のゾーンへ移動してください' },
-  '4':  { chip: 'OB',       target: 'cpu', error: 'OBのチップを「Bさん」のゾーンへ移動してください' },
-  '5':  { chip: 'バーディー', target: 'you', error: 'バーディーのチップを「あなた」のゾーンへ移動してください' },
-  '6a': { chip: '3パット',   target: 'cpu', error: '3パットのチップを「Bさん」のゾーンへ移動してください' },
-  '6b': { chip: '1パット',   target: 'you', error: '1パットのチップを「あなた」のゾーンへ移動してください' },
-  '7':  { chip: 'パー',      target: 'cpu', error: 'パーのチップを「Bさん」のゾーンへ移動してください' },
-};
-
 // Step表示番号（ドットインジケーター用）
-const TOTAL_DOTS = 10;
+const TOTAL_DOTS = 11;
 function dotIndex(step: Step): number {
-  if (step === '6a' || step === '6b') return 6;
+  if (step === '4b') return 5;
+  if (step === '6a' || step === '6b') return 7;
+  if (typeof step === 'number' && step >= 5) return step + 1;
   return step as number;
 }
 
 // 前のステップ
 function prevStep(step: Step): Step {
+  if (step === '4b') return 4;
+  if (step === 5) return '4b';
   if (step === '6b') return '6a';
   if (step === '6a') return 5;
   if (step === 7) return '6b';
@@ -93,6 +89,8 @@ function prevStep(step: Step): Step {
   return (n - 1) as Step;
 }
 function nextStep(step: Step): Step {
+  if (step === 4) return '4b';
+  if (step === '4b') return 5;
   if (step === 5) return '6a';
   if (step === '6a') return '6b';
   if (step === '6b') return 7;
@@ -145,41 +143,53 @@ function DroppableZone({ id, children, className, active }: {
 }
 
 // ---- スコアパネル（実際のゲームUIに合わせる） ----
-function PlayerPanel({ label, chips, score, isDndTarget, isDragging }: {
-  label: string; chips: typeof CHIPS; score: number;
-  isDndTarget?: boolean; isDragging?: boolean;
+function PlayerPanel({ id, label, chips, score, isDndTarget, isDragging, draggableChip, highlightScore }: {
+  id: 'you' | 'cpu'; label: string; chips: typeof CHIPS; score: number;
+  isDndTarget?: boolean; isDragging?: boolean; draggableChip?: string; highlightScore?: boolean;
 }) {
+  const { t } = useT();
   const positiveSum = chips.filter(c => c.type === 'positive').reduce((s, c) => s + c.point, 0);
   const negativeSum = chips.filter(c => c.type === 'negative').reduce((s, c) => s + c.point, 0);
+  const scoreColor = score > 0 ? 'text-[#d4af37]' : score < 0 ? 'text-red-400' : 'text-white';
+  const ringColor  = score > 0 ? 'ring-[#d4af37]' : score < 0 ? 'ring-red-400' : 'ring-white';
 
   return (
-    <DroppableZone id={label === 'あなた' ? 'you' : 'cpu'} active={isDragging}
+    <DroppableZone id={id} active={isDragging}
       className="card-casino !p-3"
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-white font-semibold text-lg">{label}</span>
         <div className="text-right shrink-0 ml-2">
-          <span className={`font-bold text-2xl tabular-nums ${score > 0 ? 'text-[#d4af37]' : score < 0 ? 'text-red-400' : 'text-white'}`}>
-            {scoreLabel(score)}
-          </span>
+          <div className="relative inline-block">
+            {highlightScore && (
+              <div className={`absolute inset-[-8px] rounded-full ring-2 ${ringColor} animate-pulse pointer-events-none`} />
+            )}
+            <span className={`font-bold text-2xl tabular-nums ${scoreColor}`}>
+              {scoreLabel(score)}
+            </span>
+          </div>
           {(positiveSum > 0 || negativeSum > 0) && (
             <p className="text-green-600 text-xs">+{positiveSum} / -{negativeSum}</p>
           )}
         </div>
       </div>
       {chips.length === 0 ? (
-        <p className="text-green-800 text-sm">チップなし</p>
+        <p className="text-green-800 text-sm">{t.demo.noChip}</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {chips.map(c => (
-            <ChipBadge key={c.name} name={c.name} chipType={c.type}
-              imageUrl={c.imageUrl} imageScale={c.imageScale} imageOffsetY={c.imageOffsetY}
-              pointValue={c.point} size={64} showLabel />
+            draggableChip === c.name ? (
+              <DraggableChip key={c.name} name={c.name} highlight disabled={false} />
+            ) : (
+              <ChipBadge key={c.name} name={c.name} chipType={c.type}
+                imageUrl={c.imageUrl} imageScale={c.imageScale} imageOffsetY={c.imageOffsetY}
+                pointValue={c.point} size={64} showLabel />
+            )
           ))}
         </div>
       )}
       {isDndTarget && (
-        <p className="text-[#d4af37] text-xs mt-2 animate-pulse text-center">👆 ここへドロップ</p>
+        <p className="text-[#d4af37] text-xs mt-2 animate-pulse text-center">{t.demo.dropHere}</p>
       )}
     </DroppableZone>
   );
@@ -201,6 +211,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 // ---- メイン ----
 export default function DemoSetupClient() {
   const router = useRouter();
+  const { t, locale } = useT();
   const [step, setStep] = useState<Step>(1);
   const [chipOwners, setChipOwners] = useState<ChipOwners>(STEP_STATES['1']);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -213,6 +224,16 @@ export default function DemoSetupClient() {
   );
 
   useEffect(() => { setErrorMsg(null); }, [step]);
+
+  // DnDルール: ステップ→{移動すべきチップ, 移動先, エラー文}
+  const DND_RULES: Record<string, { chip: string; target: Owner; error: string }> = {
+    '3':  { chip: 'パー',      target: 'you', error: t.demo.step3error },
+    '4':  { chip: 'OB',       target: 'cpu', error: t.demo.step4error },
+    '5':  { chip: 'バーディー', target: 'you', error: t.demo.step5error },
+    '6a': { chip: '3パット',   target: 'cpu', error: t.demo.step6aError },
+    '6b': { chip: '1パット',   target: 'you', error: t.demo.step6bError },
+    '7':  { chip: 'パー',      target: 'cpu', error: t.demo.step7error },
+  };
 
   const isDndStep = !!DND_RULES[String(step)];
   const rule = DND_RULES[String(step)];
@@ -241,7 +262,8 @@ export default function DemoSetupClient() {
     if (!over || !rule) return;
     const chipName = active.id as string;
     const zone = over.id as Owner;
-    if (chipOwners[chipName] !== 'field') return;
+    const allowedSource: Owner = step === 7 ? 'you' : 'field';
+    if (chipOwners[chipName] !== allowedSource) return;
     if (chipName !== rule.chip || zone !== rule.target) {
       setErrorMsg(rule.error);
       return;
@@ -262,84 +284,92 @@ export default function DemoSetupClient() {
 
   // スコア順ソート（実際のゲームと同じ）
   const playerPanels = [
-    { label: 'あなた', chips: youChips, score: youScore },
-    { label: 'Bさん',   chips: cpuChips, score: cpuScore },
+    { id: 'you' as const, label: t.demo.you,     chips: youChips, score: youScore },
+    { id: 'cpu' as const, label: t.demo.playerB, chips: cpuChips, score: cpuScore },
   ].sort((a, b) => b.score - a.score);
 
+  const step9Players = locale === 'ja' ? ['Aさん', 'Bさん', 'Cさん'] : ['A', 'B', 'C'];
+
   const STEP_TEXT: Record<string, React.ReactNode> = {
-    '1': <p className="text-green-100 text-base leading-relaxed">ChipGolfは実際のゴルフ場で仲間と楽しむアプリです ⛳</p>,
-    '2': <p className="text-green-100 text-base leading-relaxed">チップに対応するイベントが発生したら、そのチップをイベントを起こした人のゾーンに移動します</p>,
+    '1': <p className="text-green-100 text-base leading-relaxed">{t.demo.step1}</p>,
+    '2': <p className="text-green-100 text-base leading-relaxed">{t.demo.step2}</p>,
     '3': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">例えば、あなたがパーを取りました 👏</p>
-        <p className="text-[#d4af37] text-sm font-semibold">パーのチップを「あなた」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step3desc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step3instruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
     '4': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">次はBさんがOBを打ってしまいました 😱</p>
-        <p className="text-[#d4af37] text-sm font-semibold">OBチップを「Bさん」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step4desc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step4instruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
+      </div>
+    ),
+    '4b': (
+      <div className="space-y-2">
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step4bDesc}</p>
+        <p className="text-green-300 text-sm">{t.demo.step4bNote}</p>
       </div>
     ),
     '5': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">バーディーが出ました！ 🎉</p>
-        <p className="text-[#d4af37] text-sm font-semibold">バーディーのチップを「あなた」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step5desc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step5instruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
     '6a': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">3パットしてしまいました 😓</p>
-        <p className="text-[#d4af37] text-sm font-semibold">3パットのチップを「Bさん」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step6aDesc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step6aInstruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
     '6b': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">1パットを決めました！ 🎯</p>
-        <p className="text-[#d4af37] text-sm font-semibold">1パットのチップを「あなた」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step6bDesc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step6bInstruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
     '7': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed">次のホールでBさんがパーを取りました</p>
-        <p className="text-[#d4af37] text-sm font-semibold">パーチップを「Bさん」のゾーンへ移動させてください</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step7desc}</p>
+        <p className="text-[#d4af37] text-sm font-semibold">{t.demo.step7instruction}</p>
         {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
       </div>
     ),
     '8': (
       <div className="space-y-2">
-        <p className="text-green-100 text-base leading-relaxed">こうしてイベントごとにチップが行き来し、最終的なチップ合計点数で勝負が決まります</p>
+        <p className="text-green-100 text-base leading-relaxed">{t.demo.step8desc}</p>
         <div className="text-sm space-y-0.5">
-          <p className="text-[#d4af37]">✅ ポジティブチップ：獲得点数分プラス</p>
-          <p className="text-red-400">❌ ネガティブチップ：獲得点数分マイナス</p>
+          <p className="text-[#d4af37]">{t.demo.step8positive}</p>
+          <p className="text-red-400">{t.demo.step8negative}</p>
         </div>
       </div>
     ),
     '9': (
       <div className="space-y-2">
         <p className="text-green-100 text-base leading-relaxed">
-          プレイする全員がアプリを入れれば、それぞれのスマホで<span className="text-[#d4af37] font-semibold">リアルタイムに状況確認＆チップ操作</span>ができます 📱
+          {t.demo.step9desc}
         </p>
         <div className="flex justify-center gap-4 py-1">
-          {['Aさん', 'Bさん', 'Cさん'].map(n => (
+          {step9Players.map(n => (
             <div key={n} className="flex flex-col items-center gap-1">
               <div className="w-10 h-16 rounded-xl bg-[#145a32] border border-green-600 flex items-center justify-center text-lg">📱</div>
               <span className="text-green-400 text-xs">{n}</span>
             </div>
           ))}
         </div>
-        <p className="text-green-300 text-sm text-center">チップを動かすのも誰でもOK 👆</p>
+        <p className="text-green-300 text-sm text-center">{t.demo.step9subtext}</p>
       </div>
     ),
     '10': (
       <div className="space-y-1">
-        <p className="text-green-100 text-base leading-relaxed font-semibold">ゲームが終わったら「ゲーム終了」ボタンを押しましょう</p>
-        <p className="text-green-300 text-sm">最終順位が表示されます 🏆</p>
+        <p className="text-green-100 text-base leading-relaxed font-semibold">{t.demo.step10desc}</p>
+        <p className="text-green-300 text-sm">{t.demo.step10sub}</p>
       </div>
     ),
   };
@@ -361,9 +391,9 @@ export default function DemoSetupClient() {
         <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 space-y-3 relative z-0">
           {/* 場のチップ */}
           <DroppableZone id="field" active={!!dragActive} className="card-casino !p-3">
-            <p className="text-[#d4af37] font-semibold text-base mb-2">場のチップ</p>
+            <p className="text-[#d4af37] font-semibold text-base mb-2">{t.demo.field}</p>
             {fieldChips.length === 0
-              ? <p className="text-green-700 text-sm text-center py-1">すべて配布済み</p>
+              ? <p className="text-green-700 text-sm text-center py-1">{t.demo.allDealt}</p>
               : <div className="flex flex-wrap gap-2">
                   {fieldChips.map(c => (
                     <DraggableChip
@@ -377,14 +407,17 @@ export default function DemoSetupClient() {
           </DroppableZone>
 
           {/* プレイヤーパネル（スコア順） */}
-          {playerPanels.map(({ label, chips, score }) => (
+          {playerPanels.map(({ id, label, chips, score }) => (
             <PlayerPanel
-              key={label}
+              key={id}
+              id={id}
               label={label}
               chips={chips}
               score={showScores ? score : 0}
-              isDndTarget={isDndStep && rule?.target === (label === 'あなた' ? 'you' : 'cpu')}
+              isDndTarget={isDndStep && rule?.target === id}
               isDragging={!!dragActive}
+              draggableChip={step === 7 && id === 'you' ? 'パー' : undefined}
+              highlightScore={step === '4b'}
             />
           ))}
         </div>
@@ -399,20 +432,20 @@ export default function DemoSetupClient() {
 
           {isDndStep ? (
             <div className="space-y-2">
-              <p className="text-center text-green-600 text-sm">↑ チップをドラッグして移動してみましょう</p>
-              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">← 戻る</button>
+              <p className="text-center text-green-600 text-sm">{t.demo.dragHint}</p>
+              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">{t.demo.back}</button>
             </div>
           ) : step === 10 ? (
             <div className="space-y-2">
               <button onClick={() => setShowResult(true)} className="w-full py-3 rounded-lg bg-red-800 text-white font-bold hover:bg-red-700 transition-colors">
-                ゲーム終了
+                {t.demo.endGame}
               </button>
-              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">← 戻る</button>
+              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">{t.demo.back}</button>
             </div>
           ) : (
             <div className="space-y-2">
-              <button onClick={goNext} className="btn-gold w-full py-3 text-base">次へ</button>
-              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">← 戻る</button>
+              <button onClick={goNext} className="btn-gold w-full py-3 text-base">{t.demo.next}</button>
+              <button onClick={goBack} className="w-full py-2 text-green-500 text-sm text-center hover:text-green-300 transition-colors">{t.demo.back}</button>
             </div>
           )}
         </div>
@@ -438,12 +471,12 @@ export default function DemoSetupClient() {
           <div className="bg-[#0d3320] border border-green-700 rounded-2xl p-6 w-full max-w-sm">
             <div className="text-center mb-5">
               <div className="text-4xl mb-2">🏆</div>
-              <h2 className="text-[#d4af37] font-bold text-xl">最終結果</h2>
+              <h2 className="text-[#d4af37] font-bold text-xl">{t.demo.finalResult}</h2>
             </div>
             <div className="space-y-3 mb-5">
               {[
-                { name: 'あなた', score: youScore },
-                { name: 'Bさん',   score: cpuScore },
+                { name: t.demo.you,     score: youScore },
+                { name: t.demo.playerB, score: cpuScore },
               ].sort((a, b) => b.score - a.score).map((p, i) => (
                 <div key={p.name} className="flex items-center gap-3 bg-[#145a32] rounded-xl p-3">
                   <span className="text-2xl">{['🥇','🥈'][i]}</span>
@@ -455,8 +488,8 @@ export default function DemoSetupClient() {
               ))}
             </div>
             <div className="space-y-3">
-              <button onClick={() => router.push('/game/new')} className="btn-gold w-full py-3 text-base">ゲームを作成する</button>
-              <button onClick={() => router.push('/')} className="w-full text-green-400 text-sm py-2 text-center">← トップに戻る</button>
+              <button onClick={() => router.push('/game/new')} className="btn-gold w-full py-3 text-base">{t.home.createGame}</button>
+              <button onClick={() => router.push('/')} className="w-full text-green-400 text-sm py-2 text-center">← {t.demo.backToTop}</button>
             </div>
           </div>
         </div>
