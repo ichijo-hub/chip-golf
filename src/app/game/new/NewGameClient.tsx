@@ -68,7 +68,8 @@ export default function NewGameClient() {
       const gameRef = doc(db, 'games', roomCode);
       batch.set(gameRef, {
         id: roomCode, room_code: roomCode, status: 'lobby',
-        host_player_id: null, total_holes: 9, current_hole: 1,
+        host_player_id: null,
+        hole_mode: 'none', total_holes: 0, current_hole: 1,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
 

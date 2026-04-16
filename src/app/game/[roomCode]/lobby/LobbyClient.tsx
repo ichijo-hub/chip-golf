@@ -9,7 +9,16 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
-import { Game, Player } from '@/types';
+import { Game, Player, HoleMode } from '@/types';
+
+const HOLE_MODES: HoleMode[] = ['none', '9h', '18h_out', '18h_in'];
+
+function holeModeData(mode: HoleMode) {
+  if (mode === '9h')      return { total_holes: 9,  current_hole: 1 };
+  if (mode === '18h_out') return { total_holes: 18, current_hole: 1 };
+  if (mode === '18h_in')  return { total_holes: 18, current_hole: 10 };
+  return                         { total_holes: 0,  current_hole: 1 };
+}
 import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 
@@ -114,6 +123,11 @@ export default function LobbyClient() {
     router.push(`/game/__placeholder__/play?room=${roomCode}`);
   }
 
+  async function handleHoleModeChange(mode: HoleMode) {
+    const { total_holes, current_hole } = holeModeData(mode);
+    await updateDoc(doc(db, 'games', roomCode), { hole_mode: mode, total_holes, current_hole });
+  }
+
   async function handleDeleteGame() {
     if (!confirm(t.lobby.confirmDelete)) return;
     const batch = writeBatch(db);
@@ -207,7 +221,8 @@ export default function LobbyClient() {
         )}
 
         <div className="card-casino mb-4">
-          <p className="text-[#d4af37] font-semibold mb-3">{t.lobby.playersCount.replace('{{count}}', String(players.length))}</p>
+          <p className="text-[#d4af37] font-semibold mb-1">{t.lobby.playersCount.replace('{{count}}', String(players.length))}</p>
+          {isHost && <p className="text-green-600 text-xs mb-3">{t.lobby.anyNumberNote}</p>}
           {players.length === 0 ? (
             <p className="text-green-600 text-sm text-center py-2">{t.lobby.waitingForPlayers}</p>
           ) : (
@@ -229,6 +244,32 @@ export default function LobbyClient() {
 
         {isHost && isJoined && (
           <div className="space-y-3">
+            <div className="card-casino">
+              <p className="text-[#d4af37] font-semibold mb-3">{t.newGame.holeSetting}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {HOLE_MODES.map(mode => {
+                  const label = mode === 'none' ? t.newGame.holeNone
+                    : mode === '9h' ? t.newGame.hole9h
+                    : mode === '18h_out' ? t.newGame.hole18hOut
+                    : t.newGame.hole18hIn;
+                  const current = game?.hole_mode ?? 'none';
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => handleHoleModeChange(mode)}
+                      className={`py-2.5 px-3 rounded-lg text-sm font-medium transition-colors ${
+                        current === mode
+                          ? 'bg-[#d4af37] text-[#1a1a1a]'
+                          : 'bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <button
               onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
               className="w-full py-3 rounded-lg border border-green-700 text-green-300

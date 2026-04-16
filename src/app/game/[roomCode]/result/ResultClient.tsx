@@ -6,19 +6,20 @@ import {
   doc, getDoc, collection, getDocs, query, orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { Game, Player, ChipDefinition, ChipState } from '@/types';
+import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
 import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 import AdBanner from '@/components/AdBanner';
+import { chipNamesEn } from '@/lib/i18n/chipNames';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 export default function ResultClient() {
   const params = useParams();
   const router = useRouter();
-  const { t } = useT();
+  const { t, locale } = useT();
   const [roomCode] = useState(() => {
     const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
     const fromSearch = new URLSearchParams(window.location.search).get('room');
@@ -28,6 +29,10 @@ export default function ResultClient() {
   });
 
   const [scores, setScores] = useState<PlayerScore[]>([]);
+  const [events, setEvents] = useState<GameEvent[]>([]);
+  const [chipDefs, setChipDefs] = useState<ChipDefinition[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [showLog, setShowLog] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,18 +42,23 @@ export default function ResultClient() {
       if (!gameSnap.exists()) { setLoading(false); return; }
       const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
 
-      const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
+      const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
         getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
         getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
         getDocs(collection(db, 'games', roomCode, 'chip_states')),
+        getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'))),
       ]);
 
-      const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-      const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+      const loadedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+      const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
       const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
+      const loadedEvents = eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent));
 
       void game;
-      setScores(calculateScores(players, chipStates, chipDefs));
+      setPlayers(loadedPlayers);
+      setChipDefs(loadedChipDefs);
+      setEvents(loadedEvents);
+      setScores(calculateScores(loadedPlayers, chipStates, loadedChipDefs));
       setLoading(false);
     }
     load();
@@ -93,6 +103,47 @@ export default function ResultClient() {
               )}
             </div>
           ))}
+        </div>
+
+        {/* イベントログ */}
+        <div className="card-casino mb-6">
+          <button
+            type="button"
+            onClick={() => setShowLog(v => !v)}
+            className="w-full flex items-center justify-between text-[#d4af37] font-semibold text-lg"
+          >
+            <span>{t.result.eventLog.replace('{{count}}', String(events.length))}</span>
+            <span className="text-green-500 text-base">{showLog ? t.result.closeLog : t.result.openLog}</span>
+          </button>
+          {showLog && (
+            <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
+              {events.length === 0 ? (
+                <p className="text-green-700 text-base text-center py-2">{t.result.noEvents}</p>
+              ) : (
+                events.map((ev) => {
+                  const chipDef = chipDefs.find(d => d.id === ev.chip_definition_id);
+                  const chipName = chipDef
+                    ? (locale === 'en' ? (chipNamesEn[chipDef.name] ?? chipDef.name) : chipDef.name)
+                    : (ev.description?.split(':')[0] ?? '');
+                  const fromName = ev.from_player_id
+                    ? (players.find(p => p.id === ev.from_player_id)?.name ?? t.play.field)
+                    : t.play.field;
+                  const toName = ev.to_player_id
+                    ? (players.find(p => p.id === ev.to_player_id)?.name ?? t.play.field)
+                    : t.play.field;
+                  const holePrefix = ev.hole_number != null ? `${t.result.holeLabel}${ev.hole_number} ` : '';
+                  const label = chipDef
+                    ? `${holePrefix}${chipName}: ${fromName} → ${toName}`
+                    : (ev.description ?? '');
+                  return (
+                    <div key={ev.id} className="text-sm text-green-300 bg-[#145a32] rounded px-3 py-1.5">
+                      {label}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-3">

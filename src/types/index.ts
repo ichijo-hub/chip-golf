@@ -1,11 +1,13 @@
 export type GameStatus = 'lobby' | 'playing' | 'finished';
 export type ChipType = 'positive' | 'negative';
+export type HoleMode = 'none' | '9h' | '18h_out' | '18h_in';
 
 export interface Game {
   id: string;
   room_code: string;
   status: GameStatus;
   host_player_id: string | null;
+  hole_mode?: HoleMode;
   total_holes: number;
   current_hole: number;
   created_at: string;

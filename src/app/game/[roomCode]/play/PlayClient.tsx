@@ -82,7 +82,7 @@ export default function PlayClient() {
 
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
     setChipDefs(chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)).filter(c => c.is_active !== false));
-    setEvents(eventsSnap.docs.map(d => ({ id: d.id, ...d.data() } as GameEvent)));
+    setEvents(eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
     setLoading(false);
   }, [roomCode, router]);
 
@@ -112,7 +112,7 @@ export default function PlayClient() {
     const unsubEvents = onSnapshot(
       query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30)),
       (snap) => {
-        setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() } as GameEvent)));
+        setEvents(snap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
       }
     );
 
@@ -143,13 +143,14 @@ export default function PlayClient() {
     const toName = toPlayerId ? (players.find(p => p.id === toPlayerId)?.name ?? '') : '場';
     const description = `${chipDef.name}: ${fromName} → ${toName}`;
 
+    const hasHoles = game?.hole_mode && game.hole_mode !== 'none';
     await addDoc(collection(db, 'games', roomCode, 'game_events'), {
-      id: '', game_id: roomCode,
+      game_id: roomCode,
       chip_state_id: movedId,
       chip_definition_id: chipDef.id,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
-      hole_number: null,
+      hole_number: hasHoles ? (game?.current_hole ?? null) : null,
       description,
       created_at: new Date().toISOString(),
     });
@@ -183,6 +184,30 @@ export default function PlayClient() {
     await doTransfer(drag.chipState, drag.chipDef, toPlayerId);
   }
 
+  // ---- hole management ----
+
+  function getNextHole(g: Game): number | null {
+    const mode = g.hole_mode ?? 'none';
+    if (mode === 'none') return null;
+    const h = g.current_hole;
+    if (mode === '9h') return h < 9 ? h + 1 : null;
+    if (mode === '18h_out') return h < 18 ? h + 1 : null;
+    if (mode === '18h_in') {
+      if (h >= 10 && h < 18) return h + 1;
+      if (h === 18) return 1;
+      if (h >= 1 && h < 9) return h + 1;
+      return null; // h === 9: last hole done
+    }
+    return null;
+  }
+
+  async function advanceHole() {
+    if (!game) return;
+    const next = getNextHole(game);
+    if (next === null) return;
+    await updateDoc(doc(db, 'games', roomCode), { current_hole: next });
+  }
+
   // ---- render ----
 
   async function endGame() {
@@ -208,6 +233,8 @@ export default function PlayClient() {
 
   const isHost = myPlayerId === game?.host_player_id;
   const isDragging = !!dragActiveChip;
+  const hasHoles = !!(game?.hole_mode && game.hole_mode !== 'none');
+  const canAdvance = hasHoles && game ? getNextHole(game) !== null : false;
 
   const fieldChips = chipStates
     .filter(cs => cs.holder_player_id === null)
@@ -297,6 +324,21 @@ export default function PlayClient() {
             <div className="flex items-center gap-2">
               <LangToggle />
               <p className="text-[#d4af37] font-bold text-xs">Room:{roomCode}</p>
+              {hasHoles && game && (
+                <div className="flex items-center gap-1">
+                  <span className="text-white text-xs font-bold bg-green-900 px-2 py-1 rounded">
+                    {t.play.holeLabel}{game.current_hole}/{game.total_holes}
+                  </span>
+                  {isHost && canAdvance && (
+                    <button
+                      onClick={advanceHole}
+                      className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
+                    >
+                      {t.play.nextHole}
+                    </button>
+                  )}
+                </div>
+              )}
               {isHost && (
                 <button
                   onClick={endGame}
@@ -425,8 +467,9 @@ export default function PlayClient() {
                     const toName = ev.to_player_id
                       ? (players.find(p => p.id === ev.to_player_id)?.name ?? t.play.field)
                       : t.play.field;
+                    const holePrefix = ev.hole_number != null ? `${t.play.holeLabel}${ev.hole_number} ` : '';
                     const label = chipDef
-                      ? `${chipName}: ${fromName} → ${toName}`
+                      ? `${holePrefix}${chipName}: ${fromName} → ${toName}`
                       : (ev.description ?? '');
                     return (
                       <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">
