@@ -4,6 +4,10 @@ const config: CapacitorConfig = {
   appId: 'com.chipgolf.app',
   appName: 'Chip Golf',
   webDir: 'out',
+  server: {
+    url: 'https://chip-golf.vercel.app',
+    cleartext: false,
+  },
   ios: {
     contentInset: 'never',
   },
