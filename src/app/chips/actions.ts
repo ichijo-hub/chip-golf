@@ -3,7 +3,7 @@ const KEY = 'chip_golf_admin';
 const VAL = 'authenticated';
 
 export function verifyAdminPin(pin: string): boolean {
-  if (pin !== (process.env.NEXT_PUBLIC_ADMIN_PIN ?? '')) return false;
+  if (pin !== (process.env.ADMIN_PIN ?? '')) return false;
   localStorage.setItem(KEY, VAL);
   return true;
 }

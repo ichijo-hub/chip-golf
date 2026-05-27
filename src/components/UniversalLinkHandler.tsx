@@ -16,7 +16,10 @@ export default function UniversalLinkHandler() {
           // https://chip-golf.vercel.app/game/ABC123/lobby?room=ABC123
           const url = new URL(data.url);
           const path = url.pathname + url.search;
-          router.push(path);
+          // 自ドメインの許可パスのみ受け入れる（オープンリダイレクト対策）
+          if (/^\/(?:game\/|$)/.test(url.pathname)) {
+            router.push(path);
+          }
         });
         cleanup = () => handle.remove();
       } catch {

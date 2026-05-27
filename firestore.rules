@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // chip_templates: グローバルなチップテンプレート（Admin管理）
+    // Firebase Authなしのため、クライアント書き込みをルールで完全禁止はできない。
+    // TODO: chip_templates の書き込みを Server Action (Admin SDK) に移行すると
+    //       ここを allow write: if false; に変更できる。
+    match /chip_templates/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ゲームとサブコレクション
+    match /games/{roomCode} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      // クライアントからのゲーム削除を禁止（ロビー退室はプレイヤー削除で対応）
+      // ※ LobbyClient のゲーム削除フローはホスト確認後 Server Action 化を推奨
+      allow delete: if true; // TODO: ホスト認証後に false へ変更
+
+      // プレイヤー: 参加・更新は自由、削除はロビー退室処理のみ許可
+      match /players/{playerId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+        allow delete: if true;
+      }
+
+      // チップ定義: ゲーム設定変更（ホストのみ想定、Auth導入まで緩め）
+      match /chip_definitions/{chipId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+        allow delete: if true;
+      }
+
+      // チップ状態: チップ移動のリアルタイム更新、削除は不要
+      match /chip_states/{stateId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if true;
+        allow delete: if false; // チップ状態は削除しない（移動のみ）
+      }
+
+      // イベントログ: 追記専用（改ざん・削除不可）
+      match /game_events/{eventId} {
+        allow read: if true;
+        allow create: if true;
+        allow update: if false; // ログは不変
+        allow delete: if false; // ログは削除不可
+      }
+    }
+  }
+}
