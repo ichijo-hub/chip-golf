@@ -201,11 +201,33 @@ export default function PlayClient() {
     return null;
   }
 
+  function getPrevHole(g: Game): number | null {
+    const mode = g.hole_mode ?? 'none';
+    if (mode === 'none') return null;
+    const h = g.current_hole;
+    if (mode === '9h') return h > 1 ? h - 1 : null;
+    if (mode === '18h_out') return h > 1 ? h - 1 : null;
+    if (mode === '18h_in') {
+      if (h > 10) return h - 1;
+      if (h === 10) return 18; // 18H IN: wrap 10→18
+      if (h > 1) return h - 1;
+      return null; // h === 1: first hole
+    }
+    return null;
+  }
+
   async function advanceHole() {
     if (!game) return;
     const next = getNextHole(game);
     if (next === null) return;
     await updateDoc(doc(db, 'games', roomCode), { current_hole: next });
+  }
+
+  async function retreatHole() {
+    if (!game) return;
+    const prev = getPrevHole(game);
+    if (prev === null) return;
+    await updateDoc(doc(db, 'games', roomCode), { current_hole: prev });
   }
 
   // ---- render ----
@@ -235,6 +257,7 @@ export default function PlayClient() {
   const isDragging = !!dragActiveChip;
   const hasHoles = !!(game?.hole_mode && game.hole_mode !== 'none');
   const canAdvance = hasHoles && game ? getNextHole(game) !== null : false;
+  const canRetreat = hasHoles && game ? getPrevHole(game) !== null : false;
 
   const fieldChips = chipStates
     .filter(cs => cs.holder_player_id === null)
@@ -324,21 +347,6 @@ export default function PlayClient() {
             <div className="flex items-center gap-2">
               <LangToggle />
               <p className="text-[#d4af37] font-bold text-xs">Room:{roomCode}</p>
-              {hasHoles && game && (
-                <div className="flex items-center gap-1">
-                  <span className="text-white text-xs font-bold bg-green-900 px-2 py-1 rounded">
-                    {t.play.holeLabel}{game.current_hole}/{game.total_holes}
-                  </span>
-                  {isHost && canAdvance && (
-                    <button
-                      onClick={advanceHole}
-                      className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
-                    >
-                      {t.play.nextHole}
-                    </button>
-                  )}
-                </div>
-              )}
               {isHost && (
                 <button
                   onClick={endGame}
@@ -352,6 +360,41 @@ export default function PlayClient() {
         </div>
 
         <div className="p-3 space-y-3 max-w-md mx-auto">
+          {/* ホールナビゲーション */}
+          {hasHoles && game && (
+            <div className="card-casino !p-4">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={retreatHole}
+                  disabled={!canRetreat}
+                  className={`flex-1 py-3 rounded-xl font-bold text-base transition-colors border
+                    ${canRetreat
+                      ? 'bg-green-800 hover:bg-green-700 active:bg-green-600 text-white border-green-600'
+                      : 'bg-[#0d3320] text-green-900 border-green-900 cursor-not-allowed'
+                    }`}
+                >
+                  {t.play.prevHole}
+                </button>
+                <div className="text-center shrink-0">
+                  <p className="text-[#d4af37] text-xs font-semibold uppercase tracking-wider mb-0.5">HOLE</p>
+                  <p className="text-white font-bold text-4xl leading-none">{game.current_hole}</p>
+                  <p className="text-green-500 text-sm mt-0.5">/ {game.total_holes}</p>
+                </div>
+                <button
+                  onClick={advanceHole}
+                  disabled={!canAdvance}
+                  className={`flex-1 py-3 rounded-xl font-bold text-base transition-colors border
+                    ${canAdvance
+                      ? 'bg-[#d4af37] hover:bg-yellow-500 active:bg-yellow-600 text-[#1a1a1a] border-yellow-400'
+                      : 'bg-[#0d3320] text-green-900 border-green-900 cursor-not-allowed'
+                    }`}
+                >
+                  {t.play.nextHole}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 場のチップ */}
           <DroppableZone id="field" active={isDragging}>
             <div className="card-casino !p-3">

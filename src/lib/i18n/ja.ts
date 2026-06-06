@@ -101,6 +101,7 @@ export const ja = {
     closeLog: '▲ 閉じる',
     noEvents: 'まだ操作がありません',
     nextHole: '次のホール →',
+    prevHole: '← 前のホール',
     holeLabel: 'H',
   },
   result: {

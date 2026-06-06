@@ -103,6 +103,7 @@ export const en: Translations = {
     closeLog: '▲ Hide',
     noEvents: 'No moves yet',
     nextHole: 'Next Hole →',
+    prevHole: '← Prev Hole',
     holeLabel: 'H',
   },
   result: {
