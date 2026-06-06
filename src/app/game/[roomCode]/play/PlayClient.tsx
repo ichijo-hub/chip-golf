@@ -208,10 +208,10 @@ export default function PlayClient() {
     if (mode === '9h') return h > 1 ? h - 1 : null;
     if (mode === '18h_out') return h > 1 ? h - 1 : null;
     if (mode === '18h_in') {
-      if (h > 10) return h - 1;
-      if (h === 10) return 18; // 18H IN: wrap 10→18
-      if (h > 1) return h - 1;
-      return null; // h === 1: first hole
+      if (h === 10) return null; // 10H = 先頭ホール
+      if (h > 10) return h - 1; // 11〜18 → 前へ
+      if (h === 1) return 18;   // 1H → 18H へ戻る
+      return h - 1;              // 2〜9 → 前へ
     }
     return null;
   }
