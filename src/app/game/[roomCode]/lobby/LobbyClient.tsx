@@ -234,7 +234,7 @@ export default function LobbyClient() {
                   type="button"
                   onClick={() => handleJoin(false)}
                   disabled={joining || !playerName.trim()}
-                  className="btn-gold flex-1 py-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="btn-gold flex-1 py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {joining ? t.lobby.joining : t.lobby.joinAsPlayer}
                 </button>
