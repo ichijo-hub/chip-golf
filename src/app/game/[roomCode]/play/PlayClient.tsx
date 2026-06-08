@@ -418,13 +418,40 @@ export default function PlayClient() {
   async function toggleSpectator() {
     if (!me || !myPlayerId || isHost) return;
     if (!me.is_spectator) {
-      // プレイヤー→観戦者: 所持チップを場に戻す
+      const now = new Date().toISOString();
+      // チップを場に戻す
       const myChips = chipStates.filter(cs => cs.holder_player_id === myPlayerId);
-      await Promise.all(myChips.map(cs =>
-        updateDoc(doc(db, 'games', roomCode, 'chip_states', cs.id), {
-          holder_player_id: null, updated_at: new Date().toISOString(),
-        })
-      ));
+      // オリンピックのエントリを削除
+      const olympicResets = olympicLogs
+        .filter(log => myPlayerId in log.entries)
+        .map(log => {
+          const newEntries = { ...log.entries };
+          delete newEntries[myPlayerId];
+          return setDoc(doc(db, 'games', roomCode, 'olympic_logs', String(log.hole_number)), {
+            hole_number: log.hole_number, entries: newEntries, updated_at: now,
+          });
+        });
+      // ドラコン/ニアピンの当選者をリセット
+      const draconResets = draconLogs
+        .filter(log => log.winner_player_id === myPlayerId)
+        .map(log => updateDoc(doc(db, 'games', roomCode, 'dracon_logs', String(log.hole_number)), {
+          winner_player_id: null, updated_at: now,
+        }));
+      const niapinResets = niapinLogs
+        .filter(log => log.winner_player_id === myPlayerId)
+        .map(log => updateDoc(doc(db, 'games', roomCode, 'niapin_logs', String(log.hole_number)), {
+          winner_player_id: null, updated_at: now,
+        }));
+      await Promise.all([
+        ...myChips.map(cs =>
+          updateDoc(doc(db, 'games', roomCode, 'chip_states', cs.id), {
+            holder_player_id: null, updated_at: now,
+          })
+        ),
+        ...olympicResets,
+        ...draconResets,
+        ...niapinResets,
+      ]);
     }
     await updateDoc(doc(db, 'games', roomCode, 'players', myPlayerId), {
       is_spectator: !me.is_spectator,
