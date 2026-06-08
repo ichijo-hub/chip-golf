@@ -62,6 +62,10 @@ export default function PlayClient() {
   const [showHoleModeSelector, setShowHoleModeSelector] = useState(false);
   const [dragActiveChip, setDragActiveChip] = useState<ChipSelection | null>(null);
   const dragOccurredRef = useRef(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copiedRoom, setCopiedRoom] = useState(false);
+  const [spectatorConfirmOpen, setSpectatorConfirmOpen] = useState(false);
+  const [playerConfirmOpen, setPlayerConfirmOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -427,6 +431,21 @@ export default function PlayClient() {
     });
   }
 
+  function copyRoomCodeToClipboard() {
+    navigator.clipboard.writeText(roomCode);
+    setCopiedRoom(true);
+    setTimeout(() => setCopiedRoom(false), 2000);
+  }
+
+  function handleToggleSpectator() {
+    setMenuOpen(false);
+    if (!isSpectator) {
+      setSpectatorConfirmOpen(true);
+    } else {
+      setPlayerConfirmOpen(true);
+    }
+  }
+
   async function submitComment(comment: string) {
     if (!myPlayerId) return;
     const current = players.find(p => p.id === myPlayerId)?.comments ?? [];
@@ -571,29 +590,127 @@ export default function PlayClient() {
       <main className="min-h-screen pb-24">
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: '8px' }}>
           <div className="max-w-md mx-auto flex items-center justify-between">
-            <div className="flex flex-col items-start">
-              <button onClick={() => router.push('/')}><Logo size="sm" /></button>
-              <p className="text-[#d4af37] font-bold text-xs pl-0.5">Room:{roomCode}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <LangToggle />
+            <button onClick={() => router.push('/')}><Logo size="sm" /></button>
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="text-green-300 hover:text-[#d4af37] p-2 transition-colors"
+              aria-label="メニュー"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* ハンバーガーメニュー */}
+        {menuOpen && (
+          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)}>
+            <div
+              className="absolute top-0 right-0 w-64 bg-[#0d3d22] border-l border-b border-green-800 rounded-bl-xl shadow-2xl p-4 space-y-3"
+              style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* ルームコード + コピー */}
+              <div className="flex items-center justify-between bg-[#145a32] rounded-lg px-3 py-2">
+                <span className="font-mono font-bold text-[#d4af37] tracking-widest text-sm">{roomCode}</span>
+                <button
+                  onClick={copyRoomCodeToClipboard}
+                  className="text-xs text-green-400 hover:text-[#d4af37] transition-colors ml-2 shrink-0"
+                >
+                  {copiedRoom ? t.play.copied : t.play.copyRoomCode}
+                </button>
+              </div>
+
+              {/* 言語切替 */}
+              <div className="flex items-center justify-between">
+                <span className="text-green-400 text-sm">Language</span>
+                <LangToggle />
+              </div>
+
+              {/* リロード */}
               <button
                 onClick={() => window.location.reload()}
-                className="text-xs bg-green-900 hover:bg-green-800 text-green-300 px-2 py-1 rounded-lg border border-green-700"
+                className="w-full text-left text-sm text-green-300 hover:text-[#d4af37] py-1 transition-colors"
               >
-                Reload
+                🔄 Reload
               </button>
+
+              {/* 観戦者 ↔ プレイヤー切替（ホスト以外のみ） */}
+              {!isHost && (
+                <>
+                  <div className="border-t border-green-800" />
+                  <button
+                    onClick={handleToggleSpectator}
+                    className={`w-full text-left text-sm py-1 transition-colors ${isSpectator ? 'text-green-300 hover:text-[#d4af37]' : 'text-yellow-400 hover:text-yellow-300'}`}
+                  >
+                    {isSpectator ? `👤 ${t.play.becomePlayer}` : `👀 ${t.play.becomeSpectator}`}
+                  </button>
+                </>
+              )}
+
+              {/* ゲーム終了（ホストのみ） */}
               {isHost && (
-                <button
-                  onClick={endGame}
-                  className="text-xs bg-red-900 hover:bg-red-800 text-red-200 px-2 py-1 rounded-lg border border-red-700"
-                >
-                  {t.play.endGame}
-                </button>
+                <>
+                  <div className="border-t border-green-800" />
+                  <button
+                    onClick={() => { setMenuOpen(false); endGame(); }}
+                    className="w-full text-left text-sm text-red-400 hover:text-red-300 py-1 transition-colors"
+                  >
+                    🏁 {t.play.endGame}
+                  </button>
+                </>
               )}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* 観戦者になる確認モーダル */}
+        {spectatorConfirmOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="card-casino w-full max-w-sm">
+              <p className="text-[#d4af37] font-bold mb-2">⚠️ {t.play.confirmBecomeSpectator}</p>
+              <p className="text-green-300 text-sm mb-4">{t.play.confirmBecomeSpectatorDetail}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setSpectatorConfirmOpen(false); toggleSpectator(); }}
+                  className="btn-gold flex-1 py-2"
+                >
+                  {t.play.confirm}
+                </button>
+                <button
+                  onClick={() => setSpectatorConfirmOpen(false)}
+                  className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* プレイヤーになる確認モーダル */}
+        {playerConfirmOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="card-casino w-full max-w-sm">
+              <p className="text-[#d4af37] font-bold mb-4">👤 {t.play.confirmBecomePlayer}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setPlayerConfirmOpen(false); toggleSpectator(); }}
+                  className="btn-gold flex-1 py-2"
+                >
+                  {t.play.confirm}
+                </button>
+                <button
+                  onClick={() => setPlayerConfirmOpen(false)}
+                  className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-3 space-y-3 max-w-md mx-auto">
           {/* ホール設定変更（ホストのみ） */}
@@ -733,7 +850,7 @@ export default function PlayClient() {
             <div className="card-casino !p-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[#d4af37] font-semibold text-lg">{t.play.fieldChips}</p>
-                {isHost && (
+                {!isSpectator && (
                   <button
                     onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/chips?room=${roomCode}`); }}
                     className="text-xs bg-[#1a7a43] hover:bg-green-700 text-green-200 px-2 py-1 rounded-lg border border-green-600"
@@ -788,15 +905,6 @@ export default function PlayClient() {
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-2">
-                    {player.id === myPlayerId && !isHost && (
-                      <button
-                        onClick={toggleSpectator}
-                        className="text-xs text-green-500 hover:text-[#d4af37] border border-green-700 hover:border-[#d4af37] px-2 py-1 rounded transition-colors"
-                        title={t.play.chipsReturnedToField}
-                      >
-                        {t.play.becomeSpectator}
-                      </button>
-                    )}
                     <div className="text-right">
                       <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
                         {netScore > 0 ? `+${netScore}` : netScore}
@@ -1093,19 +1201,9 @@ function SpectatorSection({
         <div className="space-y-2">
           {spectators.map(p => (
             <div key={p.id} className="bg-[#145a32] rounded-lg px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                  <span className="text-green-300 font-medium text-sm">{p.name}</span>
-                  {p.id === myPlayerId && <span className="text-xs text-green-500">{t.common.you}</span>}
-                </div>
-                {p.id === myPlayerId && !isHost && (
-                  <button
-                    onClick={onToggleSpectator}
-                    className="text-xs text-green-500 hover:text-[#d4af37] border border-green-700 hover:border-[#d4af37] px-2 py-0.5 rounded transition-colors shrink-0"
-                  >
-                    {t.play.becomePlayer}
-                  </button>
-                )}
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="text-green-300 font-medium text-sm">{p.name}</span>
+                {p.id === myPlayerId && <span className="text-xs text-green-500">{t.common.you}</span>}
               </div>
               {(p.comments ?? []).length > 0 && (
                 <div className="mt-1 space-y-0.5">

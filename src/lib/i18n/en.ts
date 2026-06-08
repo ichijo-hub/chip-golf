@@ -118,6 +118,12 @@ export const en: Translations = {
     commentPlaceholder: 'Comment (max 40 chars)',
     commentSend: 'Send',
     chipsReturnedToField: 'Your chips will be returned to the field',
+    copyRoomCode: 'Copy Room Code',
+    copied: '✓ Copied',
+    confirmBecomeSpectator: 'Become a spectator?',
+    confirmBecomeSpectatorDetail: 'Your state will be fully reset. All chips you hold will be returned to the field.',
+    confirmBecomePlayer: 'Become a player?',
+    confirm: 'Confirm',
   },
   result: {
     title: 'Results',

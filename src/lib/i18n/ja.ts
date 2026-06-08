@@ -116,6 +116,12 @@ export const ja = {
     commentPlaceholder: 'コメント（40文字まで）',
     commentSend: '送信',
     chipsReturnedToField: '所持チップが場に戻ります',
+    copyRoomCode: 'ルームコードをコピー',
+    copied: '✓ コピー済み',
+    confirmBecomeSpectator: '観戦者になりますか？',
+    confirmBecomeSpectatorDetail: 'あなたの状態は全てリセットされます。所持しているチップはすべて場に戻ります。',
+    confirmBecomePlayer: 'プレイヤーになりますか？',
+    confirm: '確認',
   },
   result: {
     title: '結果発表',
