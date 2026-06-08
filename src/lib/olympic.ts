@@ -21,6 +21,8 @@ export function calcOlympicTotals(
   const totals: Record<string, number> = {};
   const breakdown: Record<string, Record<number, number>> = {};
 
+  players = players.filter(p => !p.is_spectator);
+
   players.forEach(p => {
     totals[p.id] = 0;
     breakdown[p.id] = {};

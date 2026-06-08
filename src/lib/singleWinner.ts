@@ -13,6 +13,7 @@ export function calcSingleWinnerTotals(
 ): SingleWinnerPlayerTotal[] {
   const pts: Record<string, number> = {};
   const wins: Record<string, number> = {};
+  players = players.filter(p => !p.is_spectator);
   players.forEach(p => { pts[p.id] = 0; wins[p.id] = 0; });
 
   logs.forEach(log => {
