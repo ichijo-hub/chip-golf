@@ -429,8 +429,10 @@ export default function PlayClient() {
 
   async function submitComment(comment: string) {
     if (!myPlayerId) return;
+    const current = players.find(p => p.id === myPlayerId)?.comments ?? [];
+    const updated = [...current, comment.trim()].slice(-10);
     await updateDoc(doc(db, 'games', roomCode, 'players', myPlayerId), {
-      comment: comment.trim() || null,
+      comments: updated,
     });
   }
   const hasHoles = !!(game?.hole_mode && game.hole_mode !== 'none');
@@ -1068,6 +1070,7 @@ function SpectatorSection({
     if (!comment.trim()) return;
     setSending(true);
     await onSubmitComment(comment);
+    setComment('');
     setSending(false);
   }
 
@@ -1096,8 +1099,12 @@ function SpectatorSection({
                   </button>
                 )}
               </div>
-              {p.comment && (
-                <p className="text-green-500 text-xs mt-1 break-words">💬 {p.comment}</p>
+              {(p.comments ?? []).length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {[...(p.comments ?? [])].reverse().map((c, i) => (
+                    <p key={i} className="text-green-500 text-xs break-words">💬 {c}</p>
+                  ))}
+                </div>
               )}
               {p.id === myPlayerId && isSpectator && (
                 <div className="flex gap-2 mt-2">

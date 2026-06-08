@@ -24,7 +24,7 @@ export interface Player {
   display_order: number;
   is_host: boolean;
   is_spectator: boolean;
-  comment: string | null;
+  comments: string[];
   created_at: string;
 }
 

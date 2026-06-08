@@ -39,7 +39,7 @@ export function initDemoState(playerName: string, cpuCount: number): DemoState {
       display_order: 0,
       is_host: true,
       is_spectator: false,
-      comment: null,
+      comments: [],
       created_at: now,
     },
     ...cpuPlayerIds.map((id, i) => ({
@@ -49,7 +49,7 @@ export function initDemoState(playerName: string, cpuCount: number): DemoState {
       display_order: i + 1,
       is_host: false,
       is_spectator: false,
-      comment: null,
+      comments: [],
       created_at: now,
     })),
   ];

@@ -104,7 +104,7 @@ export default function LobbyClient() {
       const playerRef = await addDoc(collection(db, 'games', roomCode, 'players'), {
         id: '', game_id: roomCode, name: playerName.trim(),
         display_order: players.length, is_host: false,
-        is_spectator: isSpectator, comment: null,
+        is_spectator: isSpectator, comments: [],
         created_at: new Date().toISOString(),
       });
       await updateDoc(playerRef, { id: playerRef.id });
