@@ -633,9 +633,9 @@ export default function PlayClient() {
               <div className="flex items-center justify-between gap-3 mb-3">
                 <button
                   onClick={retreatHole}
-                  disabled={!canRetreat}
+                  disabled={!canRetreat || isSpectator}
                   className={`flex-1 py-3 rounded-xl font-bold text-base transition-colors border
-                    ${canRetreat
+                    ${canRetreat && !isSpectator
                       ? 'bg-green-800 hover:bg-green-700 active:bg-green-600 text-white border-green-600'
                       : 'bg-[#0d3320] text-green-900 border-green-900 cursor-not-allowed'
                     }`}
@@ -649,9 +649,9 @@ export default function PlayClient() {
                 </div>
                 <button
                   onClick={advanceHole}
-                  disabled={!canAdvance}
+                  disabled={!canAdvance || isSpectator}
                   className={`flex-1 py-3 rounded-xl font-bold text-base transition-colors border
-                    ${canAdvance
+                    ${canAdvance && !isSpectator
                       ? 'bg-[#d4af37] hover:bg-yellow-500 active:bg-yellow-600 text-[#1a1a1a] border-yellow-400'
                       : 'bg-[#0d3320] text-green-900 border-green-900 cursor-not-allowed'
                     }`}
@@ -659,7 +659,7 @@ export default function PlayClient() {
                   {t.play.nextHole}
                 </button>
               </div>
-              {isOlympicEnabled && (
+              {isOlympicEnabled && !isSpectator && (
                 <button
                   type="button"
                   onClick={() => setShowOlympicModal(true)}
@@ -674,7 +674,7 @@ export default function PlayClient() {
                     : `${t.olympic.buttonLabel} H${currentHole} 入力`}
                 </button>
               )}
-              {isDraconEnabled && (
+              {isDraconEnabled && !isSpectator && (
                 <button
                   type="button"
                   onClick={() => setShowDraconModal(true)}
@@ -689,7 +689,7 @@ export default function PlayClient() {
                     : `${t.dracon.buttonLabel} H${currentHole} 入力`}
                 </button>
               )}
-              {isNiapinEnabled && (
+              {isNiapinEnabled && !isSpectator && (
                 <button
                   type="button"
                   onClick={() => setShowNiapinModal(true)}
@@ -708,7 +708,7 @@ export default function PlayClient() {
           )}
 
           {/* ホールモードなし + オリンピック有効時のスタンドアロンボタン */}
-          {!hasHoles && isOlympicEnabled && (
+          {!hasHoles && isOlympicEnabled && !isSpectator && (
             <button
               type="button"
               onClick={() => setShowOlympicModal(true)}
