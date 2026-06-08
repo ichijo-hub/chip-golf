@@ -15,7 +15,6 @@ import { useT } from '@/lib/i18n';
 interface GameSummary {
   game: Game;
   players: Player[];
-  topPlayer: Player | null;
   netScores: { player: Player; netScore: number }[];
   joinedAt: string;
 }
@@ -31,37 +30,46 @@ export default function HistoryClient() {
 
   useEffect(() => {
     async function load() {
-      const history = loadHistory();
+      const history = loadHistory().slice(0, 15); // 最大15件
       if (history.length === 0) { setLoading(false); return; }
 
-      const results: GameSummary[] = [];
-      for (const entry of history) {
-        const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
-        if (!gameSnap.exists()) continue;
-        const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
-
-        const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
-          getDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
-          getDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
-          getDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
-        ]);
-
-        const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-        const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-        const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
-        const scores = calculateScores(players, chipStates, chipDefs);
-
-        results.push({
-          game,
-          players,
-          topPlayer: scores[0]?.player ?? null,
-          netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
-          joinedAt: entry.joinedAt,
-        });
-      }
-
-      setSummaries(results);
+      // ローディング解除して空状態を即表示し、ゲームを並列取得して逐次追加
       setLoading(false);
+
+      await Promise.all(history.map(async (entry) => {
+        try {
+          const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
+          if (!gameSnap.exists()) return;
+          const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+
+          const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
+            getDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
+            getDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
+            getDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
+          ]);
+
+          const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+          const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+          const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
+          const scores = calculateScores(players, chipStates, chipDefs);
+
+          const summary: GameSummary = {
+            game,
+            players,
+            netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
+            joinedAt: entry.joinedAt,
+          };
+
+          // 取得完了したものから随時追加（新しい参加順を維持）
+          setSummaries(prev =>
+            [...prev, summary].sort(
+              (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+            )
+          );
+        } catch {
+          // 個別エラーは無視して他のゲームを継続
+        }
+      }));
     }
     load();
   }, []);
@@ -111,11 +119,14 @@ export default function HistoryClient() {
                     </p>
                   </div>
                   <button
-                    onClick={() => router.push(
-                      game.status === 'finished' ? `/game/${game.room_code}/result` :
-                      game.status === 'playing'  ? `/game/${game.room_code}/play` :
-                      `/game/${game.room_code}/lobby`
-                    )}
+                    onClick={() => {
+                      localStorage.setItem('currentRoomCode', game.room_code);
+                      router.push(
+                        game.status === 'finished' ? `/game/__placeholder__/result?room=${game.room_code}` :
+                        game.status === 'playing'  ? `/game/__placeholder__/play?room=${game.room_code}` :
+                        `/game/__placeholder__/lobby?room=${game.room_code}`
+                      );
+                    }}
                     className="text-sm text-green-400 hover:text-[#d4af37] transition-colors shrink-0"
                   >
                     {game.status === 'finished' ? t.history.viewResult : t.history.join} →

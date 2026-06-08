@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, query, orderBy,
 } from 'firebase/firestore';
+import { calcOlympicTotals, OlympicPlayerTotal } from '@/lib/olympic';
+import { calcSingleWinnerTotals, SingleWinnerPlayerTotal } from '@/lib/singleWinner';
 import { db } from '@/lib/firebase/client';
-import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
+import { Game, Player, ChipDefinition, ChipState, GameEvent, OlympicHoleLog, SingleWinnerHoleLog } from '@/types';
 import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
@@ -14,7 +16,17 @@ import LangToggle from '@/components/LangToggle';
 import AdBanner from '@/components/AdBanner';
 import { chipNamesEn } from '@/lib/i18n/chipNames';
 
-const MEDALS = ['🥇', '🥈', '🥉'];
+// Standard competition ranking (1224): counts how many have strictly higher value
+function computeRanks(values: number[]): number[] {
+  return values.map(v => values.filter(x => x > v).length + 1);
+}
+
+function rankBadge(rank: number): string {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return `${rank}位`;
+}
 
 export default function ResultClient() {
   const params = useParams();
@@ -34,6 +46,10 @@ export default function ResultClient() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [olympicTotals, setOlympicTotals] = useState<OlympicPlayerTotal[]>([]);
+  const [draconTotals, setDraconTotals] = useState<SingleWinnerPlayerTotal[]>([]);
+  const [niapinTotals, setNiapinTotals] = useState<SingleWinnerPlayerTotal[]>([]);
+  const [sideGames, setSideGames] = useState({ olympic: false, dracon: false, niapin: false });
 
   useEffect(() => {
     if (!roomCode) { router.push('/'); return; }
@@ -42,11 +58,14 @@ export default function ResultClient() {
       if (!gameSnap.exists()) { setLoading(false); return; }
       const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
 
-      const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
+      const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap, olympicSnap, draconSnap, niapinSnap] = await Promise.all([
         getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
         getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
         getDocs(collection(db, 'games', roomCode, 'chip_states')),
         getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'))),
+        getDocs(collection(db, 'games', roomCode, 'olympic_logs')),
+        getDocs(collection(db, 'games', roomCode, 'dracon_logs')),
+        getDocs(collection(db, 'games', roomCode, 'niapin_logs')),
       ]);
 
       const loadedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
@@ -54,11 +73,18 @@ export default function ResultClient() {
       const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
       const loadedEvents = eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent));
 
-      void game;
+      const olympicLogs = olympicSnap.docs.map(d => ({ ...d.data() } as OlympicHoleLog));
+      const draconLogs = draconSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
+      const niapinLogs = niapinSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
+
       setPlayers(loadedPlayers);
       setChipDefs(loadedChipDefs);
       setEvents(loadedEvents);
       setScores(calculateScores(loadedPlayers, chipStates, loadedChipDefs));
+      setSideGames({ olympic: !!game.olympic_enabled, dracon: !!game.dracon_enabled, niapin: !!game.niapin_enabled });
+      setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
+      setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
+      setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
       setLoading(false);
     }
     load();
@@ -80,11 +106,17 @@ export default function ResultClient() {
           <p className="text-green-500 text-sm mt-1">{roomCode}</p>
         </div>
 
+        {/* チップゴルフ結果 */}
+        {sideGames.olympic && (
+          <p className="text-[#d4af37] font-bold text-lg mb-3">⛳ {t.olympic.tabChipGolf}</p>
+        )}
         <div className="space-y-3 mb-8">
-          {scores.map(({ player, positivePoints, negativePoints, netScore, chips }, i) => (
+          {(() => {
+            const ranks = computeRanks(scores.map(s => s.netScore));
+            return scores.map(({ player, positivePoints, negativePoints, netScore, chips }, i) => (
             <div key={player.id} className="card-casino">
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-3xl w-10 text-center">{MEDALS[i] ?? '😢'}</span>
+                <span className={`w-10 text-center shrink-0 ${ranks[i] <= 3 ? 'text-3xl' : 'text-xs font-bold text-green-400 whitespace-nowrap'}`}>{rankBadge(ranks[i])}</span>
                 <span className="text-white font-bold text-lg flex-1">{player.name}</span>
                 <span className={`text-2xl font-bold ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
                   {netScore > 0 ? `+${netScore}` : netScore}
@@ -102,8 +134,107 @@ export default function ResultClient() {
                 </div>
               )}
             </div>
-          ))}
+          ));})()}
         </div>
+
+        {/* オリンピック結果 */}
+        {sideGames.olympic && (
+          <>
+            <p className="text-[#d4af37] font-bold text-lg mb-3">🏅 {t.olympic.tabOlympic}</p>
+            <div className="space-y-3 mb-8">
+              {olympicTotals.length === 0 ? (
+                <p className="text-green-700 text-center py-4">{t.olympic.noData}</p>
+              ) : (() => {
+                const ranks = computeRanks(olympicTotals.map(t => t.settlement));
+                return olympicTotals.map(({ player, totalPoints, settlement }, i) => (
+                  <div key={player.id} className="card-casino">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-10 text-center shrink-0 ${ranks[i] <= 3 ? 'text-3xl' : 'text-xs font-bold text-green-400 whitespace-nowrap'}`}>{rankBadge(ranks[i])}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-bold text-lg">{player.name}</p>
+                        <p className="text-green-500 text-sm">{t.olympic.totalPoints}: {totalPoints}pt</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-2xl font-bold ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </p>
+                        <p className={`text-xs font-semibold ${settlement > 0 ? 'text-green-400' : settlement < 0 ? 'text-red-400' : 'text-green-600'}`}>
+                          {settlement > 0 ? t.olympic.receive : settlement < 0 ? t.olympic.pay : '±0'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </>
+        )}
+
+        {/* ドラコン結果 */}
+        {sideGames.dracon && (
+          <>
+            <p className="text-[#d4af37] font-bold text-lg mb-3">🏌️ {t.dracon.tabLabel}</p>
+            <div className="space-y-3 mb-8">
+              {draconTotals.length === 0 ? (
+                <p className="text-green-700 text-center py-4">{t.dracon.noData}</p>
+              ) : (() => {
+                const ranks = computeRanks(draconTotals.map(t => t.settlement));
+                return draconTotals.map(({ player, wins, settlement }, i) => (
+                  <div key={player.id} className="card-casino">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-10 text-center shrink-0 ${ranks[i] <= 3 ? 'text-3xl' : 'text-xs font-bold text-green-400 whitespace-nowrap'}`}>{rankBadge(ranks[i])}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-bold text-lg">{player.name}</p>
+                        <p className="text-green-500 text-sm">{t.dracon.wins}: {wins}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-2xl font-bold ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </p>
+                        <p className={`text-xs font-semibold ${settlement > 0 ? 'text-green-400' : settlement < 0 ? 'text-red-400' : 'text-green-600'}`}>
+                          {settlement > 0 ? t.dracon.receive : settlement < 0 ? t.dracon.pay : '±0'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </>
+        )}
+
+        {/* ニアピン結果 */}
+        {sideGames.niapin && (
+          <>
+            <p className="text-[#d4af37] font-bold text-lg mb-3">📍 {t.niapin.tabLabel}</p>
+            <div className="space-y-3 mb-8">
+              {niapinTotals.length === 0 ? (
+                <p className="text-green-700 text-center py-4">{t.niapin.noData}</p>
+              ) : (() => {
+                const ranks = computeRanks(niapinTotals.map(t => t.settlement));
+                return niapinTotals.map(({ player, wins, settlement }, i) => (
+                  <div key={player.id} className="card-casino">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-10 text-center shrink-0 ${ranks[i] <= 3 ? 'text-3xl' : 'text-xs font-bold text-green-400 whitespace-nowrap'}`}>{rankBadge(ranks[i])}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-bold text-lg">{player.name}</p>
+                        <p className="text-green-500 text-sm">{t.niapin.wins}: {wins}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-2xl font-bold ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </p>
+                        <p className={`text-xs font-semibold ${settlement > 0 ? 'text-green-400' : settlement < 0 ? 'text-red-400' : 'text-green-600'}`}>
+                          {settlement > 0 ? t.niapin.receive : settlement < 0 ? t.niapin.pay : '±0'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </>
+        )}
 
         {/* イベントログ */}
         <div className="card-casino mb-6">

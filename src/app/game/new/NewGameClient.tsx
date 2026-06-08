@@ -20,6 +20,9 @@ export default function NewGameClient() {
   const { t } = useT();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [olympicEnabled, setOlympicEnabled] = useState(false);
+  const [draconEnabled, setDraconEnabled] = useState(false);
+  const [niapinEnabled, setNiapinEnabled] = useState(false);
   const seeding = useRef(false);
 
   const loadTemplates = useCallback(async () => {
@@ -70,6 +73,9 @@ export default function NewGameClient() {
         id: roomCode, room_code: roomCode, status: 'lobby',
         host_player_id: null,
         hole_mode: 'none', total_holes: 0, current_hole: 1,
+        olympic_enabled: olympicEnabled,
+        dracon_enabled: draconEnabled,
+        niapin_enabled: niapinEnabled,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
 
@@ -135,6 +141,26 @@ export default function NewGameClient() {
                          text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
             />
           </div>
+
+          {/* オプションゲーム設定 */}
+          {([
+            { label: `🏅 ${t.olympic.enableToggle}`,  value: olympicEnabled, set: setOlympicEnabled },
+            { label: `🏌️ ${t.dracon.enableToggle}`,   value: draconEnabled,  set: setDraconEnabled },
+            { label: `📍 ${t.niapin.enableToggle}`,   value: niapinEnabled,  set: setNiapinEnabled },
+          ]).map(({ label, value, set }) => (
+            <div
+              key={label}
+              className="card-casino cursor-pointer"
+              onClick={() => set(v => !v)}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[#d4af37] font-semibold text-sm">{label}</span>
+                <div className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${value ? 'bg-[#d4af37]' : 'bg-green-900'}`}>
+                  <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-0'}`} />
+                </div>
+              </div>
+            </div>
+          ))}
 
           {error && <p className="text-red-400 text-sm text-center">{error}</p>}
 

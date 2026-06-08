@@ -118,6 +118,11 @@ export default function LobbyClient() {
   }
 
   async function handleStartGame() {
+    if ((game?.olympic_enabled || game?.dracon_enabled || game?.niapin_enabled) && (!game.hole_mode || game.hole_mode === 'none')) {
+      setError(t.lobby.errorOlympicNeedsHole);
+      return;
+    }
+    setError('');
     await updateDoc(doc(db, 'games', roomCode), { status: 'playing' });
     localStorage.setItem('currentRoomCode', roomCode);
     router.push(`/game/__placeholder__/play?room=${roomCode}`);
@@ -247,7 +252,7 @@ export default function LobbyClient() {
             <div className="card-casino">
               <p className="text-[#d4af37] font-semibold mb-3">{t.newGame.holeSetting}</p>
               <div className="grid grid-cols-2 gap-2">
-                {HOLE_MODES.map(mode => {
+                {HOLE_MODES.filter(mode => !((game?.olympic_enabled || game?.dracon_enabled || game?.niapin_enabled) && mode === 'none')).map(mode => {
                   const label = mode === 'none' ? t.newGame.holeNone
                     : mode === '9h' ? t.newGame.hole9h
                     : mode === '18h_out' ? t.newGame.hole18hOut
@@ -277,6 +282,7 @@ export default function LobbyClient() {
             >
               {t.lobby.manageChips}
             </button>
+            {error && <p className="text-red-400 text-sm text-center">{error}</p>}
             <button
               onClick={handleStartGame}
               disabled={players.length < 2}

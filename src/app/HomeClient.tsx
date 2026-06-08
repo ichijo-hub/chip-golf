@@ -12,6 +12,8 @@ import { Game } from '@/types';
 import Logo from '@/components/Logo';
 import LangToggle from '@/components/LangToggle';
 import { useT } from '@/lib/i18n';
+import { Capacitor } from '@capacitor/core';
+import AdBanner from '@/components/AdBanner';
 
 interface ActiveGame {
   game: Game;
@@ -78,8 +80,16 @@ export default function HomeClient() {
     }
   }
 
+  const isNative = Capacitor.isNativePlatform();
+
   return (
-    <main className="p-4 pb-16" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 2rem)' }}>
+    <main
+      className="p-4"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top) + 2rem)',
+        paddingBottom: isNative ? 140 : 80,
+      }}
+    >
       <div className="flex flex-col items-center mb-6 relative">
         <Logo size="md" />
         <div className="absolute right-0 top-0"><LangToggle /></div>
@@ -182,11 +192,19 @@ export default function HomeClient() {
         <QRScanner onScan={handleQRScan} onClose={() => setShowQRScanner(false)} />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4 pb-8">
+      <div
+        className="fixed left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4"
+        style={{
+          bottom: isNative ? 60 : 0,
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 8px)',
+        }}
+      >
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
           {t.home.history}
         </button>
       </div>
+
+      <AdBanner />
     </main>
   );
 }

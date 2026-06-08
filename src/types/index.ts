@@ -10,6 +10,9 @@ export interface Game {
   hole_mode?: HoleMode;
   total_holes: number;
   current_hole: number;
+  olympic_enabled?: boolean;
+  dracon_enabled?: boolean;
+  niapin_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +61,24 @@ export interface ChipState {
   game_id: string;
   chip_definition_id: string;
   holder_player_id: string | null;
+  updated_at: string;
+}
+
+export interface SingleWinnerHoleLog {
+  hole_number: number;
+  winner_player_id: string | null;
+  double_up: boolean;
+  carryover: number;
+  updated_at: string;
+}
+
+export interface OlympicEntry {
+  position: number | null;  // rank: 1=farthest(金/4pts) … N=closest(最少pts). null = 獲得なし
+}
+
+export interface OlympicHoleLog {
+  hole_number: number;
+  entries: Record<string, OlympicEntry>;  // key: player_id
   updated_at: string;
 }
 

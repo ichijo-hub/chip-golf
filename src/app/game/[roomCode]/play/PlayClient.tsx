@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  doc, getDoc, collection, getDocs, addDoc, updateDoc,
+  doc, getDoc, collection, getDocs, addDoc, updateDoc, setDoc,
   onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import {
@@ -13,8 +13,12 @@ import {
   type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { db } from '@/lib/firebase/client';
-import { Game, Player, ChipDefinition, ChipState, GameEvent } from '@/types';
+import { Game, Player, ChipDefinition, ChipState, GameEvent, OlympicEntry, OlympicHoleLog, SingleWinnerHoleLog, HoleMode } from '@/types';
 import { calculateScores } from '@/lib/scoring';
+import { calcOlympicTotals } from '@/lib/olympic';
+import { calcSingleWinnerTotals } from '@/lib/singleWinner';
+import OlympicModal from '@/components/OlympicModal';
+import SingleWinnerModal from '@/components/SingleWinnerModal';
 import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
@@ -49,6 +53,13 @@ export default function PlayClient() {
   const [error, setError] = useState('');
   const [showLog, setShowLog] = useState(false);
   const [flashCounts, setFlashCounts] = useState<Record<string, number>>({});
+  const [olympicLogs, setOlympicLogs] = useState<OlympicHoleLog[]>([]);
+  const [showOlympicModal, setShowOlympicModal] = useState(false);
+  const [draconLogs, setDraconLogs] = useState<SingleWinnerHoleLog[]>([]);
+  const [niapinLogs, setNiapinLogs] = useState<SingleWinnerHoleLog[]>([]);
+  const [showDraconModal, setShowDraconModal] = useState(false);
+  const [showNiapinModal, setShowNiapinModal] = useState(false);
+  const [showHoleModeSelector, setShowHoleModeSelector] = useState(false);
   const [dragActiveChip, setDragActiveChip] = useState<ChipSelection | null>(null);
   const dragOccurredRef = useRef(false);
 
@@ -106,7 +117,7 @@ export default function PlayClient() {
           setFlashCounts(prev => ({ ...prev, [changedId]: (prev[changedId] ?? 0) + 1 }));
         }
       });
-      setChipStates(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState)));
+      setChipStates(snap.docs.map(d => ({ ...d.data(), id: d.id } as ChipState)));
     });
 
     const unsubEvents = onSnapshot(
@@ -123,7 +134,28 @@ export default function PlayClient() {
       if (updated.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
     });
 
-    return () => { unsubChips(); unsubEvents(); unsubGame(); };
+    const unsubOlympic = onSnapshot(
+      collection(db, 'games', roomCode, 'olympic_logs'),
+      (snap) => {
+        setOlympicLogs(snap.docs.map(d => ({ ...d.data() } as OlympicHoleLog)));
+      }
+    );
+
+    const unsubDracon = onSnapshot(
+      collection(db, 'games', roomCode, 'dracon_logs'),
+      (snap) => {
+        setDraconLogs(snap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog)));
+      }
+    );
+
+    const unsubNiapin = onSnapshot(
+      collection(db, 'games', roomCode, 'niapin_logs'),
+      (snap) => {
+        setNiapinLogs(snap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog)));
+      }
+    );
+
+    return () => { unsubChips(); unsubEvents(); unsubGame(); unsubOlympic(); unsubDracon(); unsubNiapin(); };
   }, [roomCode, router]);
 
   // ---- transfer logic ----
@@ -182,6 +214,111 @@ export default function PlayClient() {
     if (toPlayerId === drag.chipState.holder_player_id) return; // same zone → no-op
 
     await doTransfer(drag.chipState, drag.chipDef, toPlayerId);
+  }
+
+  // ---- hole mode change (host only) ----
+
+  async function changeHoleMode(mode: HoleMode) {
+    const total_holes = mode === '9h' ? 9 : mode === 'none' ? 0 : 18;
+    const current_hole = mode === '18h_in' ? 10 : 1;
+    await updateDoc(doc(db, 'games', roomCode), { hole_mode: mode, total_holes, current_hole });
+    setShowHoleModeSelector(false);
+  }
+
+  // ---- olympic ----
+
+  async function saveOlympicLog(holeNumber: number, entries: Record<string, OlympicEntry>) {
+    await setDoc(doc(db, 'games', roomCode, 'olympic_logs', String(holeNumber)), {
+      hole_number: holeNumber,
+      entries,
+      updated_at: new Date().toISOString(),
+    });
+
+    const RANK_LABELS = locale === 'en'
+      ? ['🥇Gold', '🥈Silver', '🥉Bronze', '🫀Iron']
+      : ['🥇金', '🥈銀', '🥉銅', '鉄'];
+    const olympicLabel = locale === 'en' ? 'Olympic' : 'オリンピック';
+    await Promise.all(
+      Object.entries(entries)
+        .filter(([, entry]) => entry.position !== null)
+        .map(([playerId, entry]) => {
+          const player = players.find(p => p.id === playerId);
+          if (!player) return Promise.resolve();
+          const pts = Math.max(1, 5 - entry.position!);
+          const rankLabel = RANK_LABELS[entry.position! - 1] ?? String(entry.position);
+          return addDoc(collection(db, 'games', roomCode, 'game_events'), {
+            game_id: roomCode,
+            chip_state_id: null,
+            chip_definition_id: null,
+            from_player_id: null,
+            to_player_id: playerId,
+            hole_number: holeNumber,
+            description: `🏅 H${holeNumber} ${olympicLabel}: ${player.name} ${rankLabel}(${pts}pt)`,
+            created_at: new Date().toISOString(),
+          });
+        })
+    );
+
+    setShowOlympicModal(false);
+  }
+
+  async function saveSingleWinnerLog(
+    type: 'dracon' | 'niapin',
+    holeNumber: number,
+    winnerId: string | null,
+    doubleUp: boolean,
+    carryover: number,
+  ) {
+    await setDoc(doc(db, 'games', roomCode, `${type}_logs`, String(holeNumber)), {
+      hole_number: holeNumber,
+      winner_player_id: winnerId,
+      double_up: doubleUp,
+      carryover,
+      updated_at: new Date().toISOString(),
+    });
+
+    const emoji = type === 'dracon' ? '🏌️' : '📍';
+    const label = locale === 'en'
+      ? (type === 'dracon' ? 'Longest Drive' : 'Closest Pin')
+      : (type === 'dracon' ? 'ドラコン' : 'ニアピン');
+    const noWinnerLabel = locale === 'en' ? 'No winner' : '該当者なし';
+
+    if (winnerId) {
+      const player = players.find(p => p.id === winnerId);
+      if (player) {
+        const basePts = doubleUp ? 2 : 1;
+        const effectivePts = basePts + carryover;
+        const extras = [
+          doubleUp ? (locale === 'en' ? 'Double' : '倍付け') : '',
+          carryover > 0 ? `CO+${carryover}` : '',
+        ].filter(Boolean).join(' ');
+        const extrasLabel = extras ? ` (${extras})` : '';
+        await addDoc(collection(db, 'games', roomCode, 'game_events'), {
+          game_id: roomCode,
+          chip_state_id: null,
+          chip_definition_id: null,
+          from_player_id: null,
+          to_player_id: winnerId,
+          hole_number: holeNumber,
+          description: `${emoji} H${holeNumber} ${label}: ${player.name}(${effectivePts}pt${extrasLabel})`,
+          created_at: new Date().toISOString(),
+        });
+      }
+    } else {
+      await addDoc(collection(db, 'games', roomCode, 'game_events'), {
+        game_id: roomCode,
+        chip_state_id: null,
+        chip_definition_id: null,
+        from_player_id: null,
+        to_player_id: null,
+        hole_number: holeNumber,
+        description: `${emoji} H${holeNumber} ${label}: ${noWinnerLabel}`,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    if (type === 'dracon') setShowDraconModal(false);
+    else setShowNiapinModal(false);
   }
 
   // ---- hole management ----
@@ -259,6 +396,16 @@ export default function PlayClient() {
   const canAdvance = hasHoles && game ? getNextHole(game) !== null : false;
   const canRetreat = hasHoles && game ? getPrevHole(game) !== null : false;
 
+  const currentHole = game?.current_hole ?? 1;
+  const isOlympicEnabled = !!game?.olympic_enabled;
+  const isDraconEnabled = !!game?.dracon_enabled;
+  const isNiapinEnabled = !!game?.niapin_enabled;
+  const anySideGameEnabled = isOlympicEnabled || isDraconEnabled || isNiapinEnabled;
+  const currentOlympicLog = olympicLogs.find(l => l.hole_number === currentHole) ?? null;
+  const isCurrentHoleLogged = !!currentOlympicLog;
+  const currentDraconLog = draconLogs.find(l => l.hole_number === currentHole) ?? null;
+  const currentNiapinLog = niapinLogs.find(l => l.hole_number === currentHole) ?? null;
+
   const fieldChips = chipStates
     .filter(cs => cs.holder_player_id === null)
     .sort((a, b) => {
@@ -278,6 +425,44 @@ export default function PlayClient() {
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       autoScroll={false}
     >
+      {/* オリンピック入力モーダル */}
+      {showOlympicModal && (
+        <OlympicModal
+          players={players}
+          holeNumber={currentHole}
+          isHoleEditable={!hasHoles}
+          existingLog={currentOlympicLog}
+          onSave={saveOlympicLog}
+          onClose={() => setShowOlympicModal(false)}
+        />
+      )}
+
+      {/* ドラコン入力モーダル */}
+      {showDraconModal && (
+        <SingleWinnerModal
+          type="dracon"
+          players={players}
+          holeNumber={currentHole}
+          isHoleEditable={!hasHoles}
+          existingLog={currentDraconLog}
+          onSave={(hole, winner, doubleUp, carryover) => saveSingleWinnerLog('dracon', hole, winner, doubleUp, carryover)}
+          onClose={() => setShowDraconModal(false)}
+        />
+      )}
+
+      {/* ニアピン入力モーダル */}
+      {showNiapinModal && (
+        <SingleWinnerModal
+          type="niapin"
+          players={players}
+          holeNumber={currentHole}
+          isHoleEditable={!hasHoles}
+          existingLog={currentNiapinLog}
+          onSave={(hole, winner, doubleUp, carryover) => saveSingleWinnerLog('niapin', hole, winner, doubleUp, carryover)}
+          onClose={() => setShowNiapinModal(false)}
+        />
+      )}
+
       {/* タップ → モーダル */}
       {selected && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setSelected(null)}>
@@ -360,10 +545,51 @@ export default function PlayClient() {
         </div>
 
         <div className="p-3 space-y-3 max-w-md mx-auto">
+          {/* ホール設定変更（ホストのみ） */}
+          {isHost && (
+            <div className="card-casino !p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[#d4af37] font-semibold text-sm">{t.newGame.holeSetting}</p>
+                <button
+                  type="button"
+                  onClick={() => setShowHoleModeSelector(v => !v)}
+                  className="text-xs text-green-400 hover:text-[#d4af37] transition-colors"
+                >
+                  {showHoleModeSelector ? t.common.close : t.common.edit}
+                </button>
+              </div>
+              {showHoleModeSelector && (
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {(['none', '9h', '18h_out', '18h_in'] as HoleMode[]).filter(mode => !(anySideGameEnabled && mode === 'none')).map(mode => {
+                    const label = mode === 'none' ? t.newGame.holeNone
+                      : mode === '9h' ? t.newGame.hole9h
+                      : mode === '18h_out' ? t.newGame.hole18hOut
+                      : t.newGame.hole18hIn;
+                    const current = game?.hole_mode ?? 'none';
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => changeHoleMode(mode)}
+                        className={`py-2 rounded-lg text-sm font-medium border transition-colors
+                          ${current === mode
+                            ? 'bg-[#d4af37] border-yellow-400 text-[#1a1a1a]'
+                            : 'bg-green-800 border-green-700 hover:bg-green-700 text-white'
+                          }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ホールナビゲーション */}
           {hasHoles && game && (
             <div className="card-casino !p-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <button
                   onClick={retreatHole}
                   disabled={!canRetreat}
@@ -392,7 +618,63 @@ export default function PlayClient() {
                   {t.play.nextHole}
                 </button>
               </div>
+              {isOlympicEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setShowOlympicModal(true)}
+                  className={`w-full py-2 rounded-xl font-bold text-sm border transition-colors
+                    ${isCurrentHoleLogged
+                      ? 'bg-green-900 border-green-600 text-green-300'
+                      : 'bg-yellow-900/40 border-yellow-600 text-yellow-300 hover:bg-yellow-900/70'
+                    }`}
+                >
+                  {isCurrentHoleLogged
+                    ? `${t.olympic.buttonLogged} H${currentHole}`
+                    : `${t.olympic.buttonLabel} H${currentHole} 入力`}
+                </button>
+              )}
+              {isDraconEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setShowDraconModal(true)}
+                  className={`w-full py-2 rounded-xl font-bold text-sm border transition-colors
+                    ${!!currentDraconLog
+                      ? 'bg-green-900 border-green-600 text-green-300'
+                      : 'bg-yellow-900/40 border-yellow-600 text-yellow-300 hover:bg-yellow-900/70'
+                    }`}
+                >
+                  {currentDraconLog
+                    ? `${t.dracon.buttonLogged} H${currentHole}`
+                    : `${t.dracon.buttonLabel} H${currentHole} 入力`}
+                </button>
+              )}
+              {isNiapinEnabled && (
+                <button
+                  type="button"
+                  onClick={() => setShowNiapinModal(true)}
+                  className={`w-full py-2 rounded-xl font-bold text-sm border transition-colors
+                    ${!!currentNiapinLog
+                      ? 'bg-green-900 border-green-600 text-green-300'
+                      : 'bg-yellow-900/40 border-yellow-600 text-yellow-300 hover:bg-yellow-900/70'
+                    }`}
+                >
+                  {currentNiapinLog
+                    ? `${t.niapin.buttonLogged} H${currentHole}`
+                    : `${t.niapin.buttonLabel} H${currentHole} 入力`}
+                </button>
+              )}
             </div>
+          )}
+
+          {/* ホールモードなし + オリンピック有効時のスタンドアロンボタン */}
+          {!hasHoles && isOlympicEnabled && (
+            <button
+              type="button"
+              onClick={() => setShowOlympicModal(true)}
+              className="w-full py-3 rounded-xl font-bold text-sm border bg-yellow-900/40 border-yellow-600 text-yellow-300 hover:bg-yellow-900/70 transition-colors"
+            >
+              {t.olympic.buttonLabel}
+            </button>
           )}
 
           {/* 場のチップ */}
@@ -483,6 +765,75 @@ export default function PlayClient() {
               </div>
             </DroppableZone>
           ))}
+
+          {/* オリンピック途中経過 */}
+          {isOlympicEnabled && olympicLogs.length > 0 && (() => {
+            const totals = calcOlympicTotals(players, olympicLogs);
+            return (
+              <div className="card-casino !p-3">
+                <p className="text-[#d4af37] font-semibold text-base mb-2">🏅 {t.olympic.tabOlympic}</p>
+                <div className="space-y-1.5">
+                  {totals.map(({ player, totalPoints, settlement }) => (
+                    <div key={player.id} className="flex items-center justify-between bg-[#145a32] rounded-lg px-3 py-2">
+                      <span className="text-white text-sm font-medium">{player.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-green-400 text-sm">{totalPoints}pt</span>
+                        <span className={`text-sm font-bold w-14 text-right ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ドラコン途中経過 */}
+          {isDraconEnabled && draconLogs.length > 0 && (() => {
+            const totals = calcSingleWinnerTotals(players, draconLogs);
+            return (
+              <div className="card-casino !p-3">
+                <p className="text-[#d4af37] font-semibold text-base mb-2">🏌️ {t.dracon.tabLabel}</p>
+                <div className="space-y-1.5">
+                  {totals.map(({ player, wins, settlement }) => (
+                    <div key={player.id} className="flex items-center justify-between bg-[#145a32] rounded-lg px-3 py-2">
+                      <span className="text-white text-sm font-medium">{player.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-green-400 text-sm">{wins}{t.dracon.wins}</span>
+                        <span className={`text-sm font-bold w-14 text-right ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ニアピン途中経過 */}
+          {isNiapinEnabled && niapinLogs.length > 0 && (() => {
+            const totals = calcSingleWinnerTotals(players, niapinLogs);
+            return (
+              <div className="card-casino !p-3">
+                <p className="text-[#d4af37] font-semibold text-base mb-2">📍 {t.niapin.tabLabel}</p>
+                <div className="space-y-1.5">
+                  {totals.map(({ player, wins, settlement }) => (
+                    <div key={player.id} className="flex items-center justify-between bg-[#145a32] rounded-lg px-3 py-2">
+                      <span className="text-white text-sm font-medium">{player.name}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-green-400 text-sm">{wins}{t.niapin.wins}</span>
+                        <span className={`text-sm font-bold w-14 text-right ${settlement > 0 ? 'text-[#d4af37]' : settlement < 0 ? 'text-red-400' : 'text-white'}`}>
+                          {settlement > 0 ? `+${settlement}` : settlement}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* イベントログ */}
           <div className="card-casino !p-3">

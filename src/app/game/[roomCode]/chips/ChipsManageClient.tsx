@@ -162,10 +162,11 @@ export default function ChipsManageClient() {
       sort_order: chips.length, image_url: null,
     });
     await updateDoc(chipDefRef, { id: chipDefRef.id });
-    await addDoc(collection(db, 'games', roomCode, 'chip_states'), {
+    const stateRef = await addDoc(collection(db, 'games', roomCode, 'chip_states'), {
       id: '', game_id: roomCode, chip_definition_id: chipDefRef.id,
       holder_player_id: null, updated_at: new Date().toISOString(),
     });
+    await updateDoc(stateRef, { id: stateRef.id });
     setNewChipName('');
     setAdding(false);
     loadData();
