@@ -618,15 +618,31 @@ export default function PlayClient() {
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: '8px' }}>
           <div className="max-w-md mx-auto flex items-center justify-between">
             <button onClick={() => router.push('/')}><Logo size="sm" /></button>
-            <button
-              onClick={() => setMenuOpen(true)}
-              className="text-green-300 hover:text-[#d4af37] p-2 transition-colors"
-              aria-label="メニュー"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.location.reload()}
+                className="text-xs bg-green-900 hover:bg-green-800 text-green-300 px-2 py-1 rounded-lg border border-green-700"
+              >
+                Reload
+              </button>
+              {isHost && (
+                <button
+                  onClick={endGame}
+                  className="text-xs bg-red-900 hover:bg-red-800 text-red-200 px-2 py-1 rounded-lg border border-red-700"
+                >
+                  {t.play.endGame}
+                </button>
+              )}
+              <button
+                onClick={() => setMenuOpen(true)}
+                className="text-green-300 hover:text-[#d4af37] p-1 transition-colors"
+                aria-label="メニュー"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -655,14 +671,6 @@ export default function PlayClient() {
                 <LangToggle />
               </div>
 
-              {/* リロード */}
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full text-left text-sm text-green-300 hover:text-[#d4af37] py-1 transition-colors"
-              >
-                🔄 Reload
-              </button>
-
               {/* 観戦者 ↔ プレイヤー切替（ホスト以外のみ） */}
               {!isHost && (
                 <>
@@ -672,19 +680,6 @@ export default function PlayClient() {
                     className={`w-full text-left text-sm py-1 transition-colors ${isSpectator ? 'text-green-300 hover:text-[#d4af37]' : 'text-yellow-400 hover:text-yellow-300'}`}
                   >
                     {isSpectator ? `👤 ${t.play.becomePlayer}` : `👀 ${t.play.becomeSpectator}`}
-                  </button>
-                </>
-              )}
-
-              {/* ゲーム終了（ホストのみ） */}
-              {isHost && (
-                <>
-                  <div className="border-t border-green-800" />
-                  <button
-                    onClick={() => { setMenuOpen(false); endGame(); }}
-                    className="w-full text-left text-sm text-red-400 hover:text-red-300 py-1 transition-colors"
-                  >
-                    🏁 {t.play.endGame}
                   </button>
                 </>
               )}
