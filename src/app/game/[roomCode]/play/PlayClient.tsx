@@ -571,10 +571,18 @@ export default function PlayClient() {
       <main className="min-h-screen pb-24">
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: '8px' }}>
           <div className="max-w-md mx-auto flex items-center justify-between">
-            <button onClick={() => router.push('/')}><Logo size="sm" /></button>
+            <div className="flex flex-col items-start">
+              <button onClick={() => router.push('/')}><Logo size="sm" /></button>
+              <p className="text-[#d4af37] font-bold text-xs pl-0.5">Room:{roomCode}</p>
+            </div>
             <div className="flex items-center gap-2">
               <LangToggle />
-              <p className="text-[#d4af37] font-bold text-xs">Room:{roomCode}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-xs bg-green-900 hover:bg-green-800 text-green-300 px-2 py-1 rounded-lg border border-green-700"
+              >
+                Reload
+              </button>
               {isHost && (
                 <button
                   onClick={endGame}
