@@ -110,6 +110,13 @@ export default function PlayClient() {
   }, [roomCode, loadData]);
 
   useEffect(() => {
+    const unsubChipDefs = onSnapshot(
+      query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order')),
+      (snap) => {
+        setChipDefs(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)).filter(c => c.is_active !== false));
+      }
+    );
+
     const unsubChips = onSnapshot(collection(db, 'games', roomCode, 'chip_states'), (snap) => {
       snap.docChanges().forEach(change => {
         if (change.type === 'modified' || change.type === 'added') {
@@ -155,7 +162,7 @@ export default function PlayClient() {
       }
     );
 
-    return () => { unsubChips(); unsubEvents(); unsubGame(); unsubOlympic(); unsubDracon(); unsubNiapin(); };
+    return () => { unsubChipDefs(); unsubChips(); unsubEvents(); unsubGame(); unsubOlympic(); unsubDracon(); unsubNiapin(); };
   }, [roomCode, router]);
 
   // ---- transfer logic ----
