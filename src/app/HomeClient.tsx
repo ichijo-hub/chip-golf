@@ -34,21 +34,33 @@ export default function HomeClient() {
       const history = loadHistory();
       if (history.length === 0) return;
 
-      const results: ActiveGame[] = [];
-      for (const entry of history) {
-        const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
-        if (!gameSnap.exists()) continue;
-        const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
-        if (game.status === 'finished') continue;
+      // ゲームドキュメントを並列フェッチ
+      const gameSnaps = await Promise.all(
+        history.map(entry => getDoc(doc(db, 'games', entry.roomCode)))
+      );
 
-        const playerId = localStorage.getItem(`player_${entry.roomCode}`);
-        let hostName = '';
-        if (game.host_player_id) {
-          const hostSnap = await getDoc(doc(db, 'games', entry.roomCode, 'players', game.host_player_id));
-          if (hostSnap.exists()) hostName = (hostSnap.data() as { name: string }).name;
-        }
-        results.push({ game, isHost: playerId === game.host_player_id, hostName });
-      }
+      const activeEntries = gameSnaps
+        .map((snap, i) => ({ snap, roomCode: history[i].roomCode }))
+        .filter(({ snap }) => snap.exists())
+        .map(({ snap, roomCode }) => ({
+          game: { id: snap.id, ...snap.data() } as Game,
+          roomCode,
+        }))
+        .filter(({ game }) => game.status !== 'finished');
+
+      // ホスト名を並列フェッチ
+      const results = await Promise.all(
+        activeEntries.map(async ({ game, roomCode }) => {
+          const playerId = localStorage.getItem(`player_${roomCode}`);
+          let hostName = '';
+          if (game.host_player_id) {
+            const hostSnap = await getDoc(doc(db, 'games', roomCode, 'players', game.host_player_id));
+            if (hostSnap.exists()) hostName = (hostSnap.data() as { name: string }).name;
+          }
+          return { game, isHost: playerId === game.host_player_id, hostName };
+        })
+      );
+
       setActiveGames(results);
     }
     loadActiveGames();
