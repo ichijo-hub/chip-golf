@@ -14,6 +14,7 @@ export function calculateScores(
   chipDefinitions: ChipDefinition[]
 ): PlayerScore[] {
   return players
+    .filter((player) => !player.is_spectator)
     .map((player) => {
       const playerChipStates = chipStates.filter(
         (cs) => cs.holder_player_id === player.id

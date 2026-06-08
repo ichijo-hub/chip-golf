@@ -23,6 +23,8 @@ export interface Player {
   name: string;
   display_order: number;
   is_host: boolean;
+  is_spectator: boolean;
+  comment: string | null;
   created_at: string;
 }
 

@@ -162,12 +162,21 @@ export default function PlayClient() {
       }
     );
 
-    return () => { unsubChipDefs(); unsubChips(); unsubEvents(); unsubGame(); unsubOlympic(); unsubDracon(); unsubNiapin(); };
+    const unsubPlayers = onSnapshot(
+      query(collection(db, 'games', roomCode, 'players'), orderBy('display_order')),
+      (snap) => {
+        setPlayers(snap.docs.map(d => ({ ...d.data(), id: d.id } as Player)));
+      }
+    );
+
+    return () => { unsubChipDefs(); unsubChips(); unsubEvents(); unsubGame(); unsubOlympic(); unsubDracon(); unsubNiapin(); unsubPlayers(); };
   }, [roomCode, router]);
 
   // ---- transfer logic ----
 
   async function doTransfer(chipState: ChipState, chipDef: ChipDefinition, toPlayerId: string | null) {
+    const me = players.find(p => p.id === myPlayerId);
+    if (me?.is_spectator) return;
     const fromPlayerId = chipState.holder_player_id;
     const movedId = chipState.id;
 
@@ -398,7 +407,32 @@ export default function PlayClient() {
   }
 
   const isHost = myPlayerId === game?.host_player_id;
+  const me = players.find(p => p.id === myPlayerId);
+  const isSpectator = me?.is_spectator ?? false;
   const isDragging = !!dragActiveChip;
+
+  async function toggleSpectator() {
+    if (!me || !myPlayerId || isHost) return;
+    if (!me.is_spectator) {
+      // プレイヤー→観戦者: 所持チップを場に戻す
+      const myChips = chipStates.filter(cs => cs.holder_player_id === myPlayerId);
+      await Promise.all(myChips.map(cs =>
+        updateDoc(doc(db, 'games', roomCode, 'chip_states', cs.id), {
+          holder_player_id: null, updated_at: new Date().toISOString(),
+        })
+      ));
+    }
+    await updateDoc(doc(db, 'games', roomCode, 'players', myPlayerId), {
+      is_spectator: !me.is_spectator,
+    });
+  }
+
+  async function submitComment(comment: string) {
+    if (!myPlayerId) return;
+    await updateDoc(doc(db, 'games', roomCode, 'players', myPlayerId), {
+      comment: comment.trim() || null,
+    });
+  }
   const hasHoles = !!(game?.hole_mode && game.hole_mode !== 'none');
   const canAdvance = hasHoles && game ? getNextHole(game) !== null : false;
   const canRetreat = hasHoles && game ? getPrevHole(game) !== null : false;
@@ -706,7 +740,13 @@ export default function PlayClient() {
                     const def = chipDefs.find(d => d.id === cs.chip_definition_id);
                     if (!def) return null;
                     return (
-                      <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef: def }} onTap={() => setSelected({ chipState: cs, chipDef: def })}>
+                      <DraggableChip
+                        key={`${cs.id}-${flashCounts[cs.id] ?? 0}`}
+                        id={cs.id}
+                        data={{ chipState: cs, chipDef: def }}
+                        onTap={isSpectator ? undefined : () => setSelected({ chipState: cs, chipDef: def })}
+                        disabled={isSpectator}
+                      >
                         <ChipBadge
                           name={def.name}
                           chipType={def.chip_type}
@@ -727,7 +767,7 @@ export default function PlayClient() {
 
           {/* プレイヤーパネル */}
           {scores.map(({ player, positivePoints, negativePoints, netScore, chips }) => (
-            <DroppableZone key={player.id} id={player.id} active={isDragging}>
+            <DroppableZone key={player.id} id={player.id} active={isDragging && !isSpectator}>
               <div className="card-casino !p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -737,11 +777,22 @@ export default function PlayClient() {
                       <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">{t.common.host}</span>
                     )}
                   </div>
-                  <div className="text-right shrink-0 ml-2">
-                    <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
-                      {netScore > 0 ? `+${netScore}` : netScore}
-                    </span>
-                    <p className="text-green-600 text-base">+{positivePoints} / -{negativePoints}</p>
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    {player.id === myPlayerId && !isHost && (
+                      <button
+                        onClick={toggleSpectator}
+                        className="text-xs text-green-500 hover:text-[#d4af37] border border-green-700 hover:border-[#d4af37] px-2 py-1 rounded transition-colors"
+                        title={t.play.chipsReturnedToField}
+                      >
+                        {t.play.becomeSpectator}
+                      </button>
+                    )}
+                    <div className="text-right">
+                      <span className={`font-bold text-2xl ${netScore > 0 ? 'text-[#d4af37]' : netScore < 0 ? 'text-red-400' : 'text-white'}`}>
+                        {netScore > 0 ? `+${netScore}` : netScore}
+                      </span>
+                      <p className="text-green-600 text-base">+{positivePoints} / -{negativePoints}</p>
+                    </div>
                   </div>
                 </div>
                 {chips.length === 0 ? (
@@ -752,7 +803,13 @@ export default function PlayClient() {
                       const cs = chipStates.find(s => s.chip_definition_id === chipDef.id && s.holder_player_id === player.id);
                       if (!cs) return null;
                       return (
-                        <DraggableChip key={`${cs.id}-${flashCounts[cs.id] ?? 0}`} id={cs.id} data={{ chipState: cs, chipDef }} onTap={() => setSelected({ chipState: cs, chipDef })}>
+                        <DraggableChip
+                          key={`${cs.id}-${flashCounts[cs.id] ?? 0}`}
+                          id={cs.id}
+                          data={{ chipState: cs, chipDef }}
+                          onTap={isSpectator ? undefined : () => setSelected({ chipState: cs, chipDef })}
+                          disabled={isSpectator}
+                        >
                           <ChipBadge
                             name={chipDef.name}
                             chipType={chipDef.chip_type}
@@ -762,7 +819,7 @@ export default function PlayClient() {
                             pointValue={chipDef.point_value}
                             size={64}
                             flash={(flashCounts[cs.id] ?? 0) > 0}
-                            onClick={() => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef }); }}
+                            onClick={isSpectator ? undefined : () => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef }); }}
                           />
                         </DraggableChip>
                       );
@@ -772,6 +829,17 @@ export default function PlayClient() {
               </div>
             </DroppableZone>
           ))}
+
+          {/* 観戦者セクション */}
+          <SpectatorSection
+            players={players}
+            myPlayerId={myPlayerId}
+            isSpectator={isSpectator}
+            isHost={isHost}
+            onToggleSpectator={toggleSpectator}
+            onSubmitComment={submitComment}
+            t={t}
+          />
 
           {/* オリンピック途中経過 */}
           {isOlympicEnabled && olympicLogs.length > 0 && (() => {
@@ -908,14 +976,15 @@ export default function PlayClient() {
 // ---- inner components ----
 
 function DraggableChip({
-  id, data, children, onTap,
+  id, data, children, onTap, disabled,
 }: {
   id: string;
   data: ChipSelection;
   children: React.ReactNode;
   onTap?: () => void;
+  disabled?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data, disabled });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const tapStart = useRef({ time: 0, x: 0, y: 0 });
   const onTapRef = useRef(onTap);
@@ -955,7 +1024,7 @@ function DraggableChip({
       draggable={false}
       onContextMenu={(e) => e.preventDefault()}
       onClick={() => onTapRef.current?.()}
-      style={{ opacity: isDragging ? 0.25 : 1, cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+      style={{ opacity: isDragging ? 0.25 : 1, cursor: disabled ? 'default' : isDragging ? 'grabbing' : 'grab', touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
     >
       {children}
     </div>
@@ -976,6 +1045,86 @@ function DroppableZone({
       className={`rounded-xl transition-all duration-150 ${active && isOver ? 'ring-2 ring-[#d4af37]' : ''}`}
     >
       {children}
+    </div>
+  );
+}
+
+function SpectatorSection({
+  players, myPlayerId, isSpectator, isHost, onToggleSpectator, onSubmitComment, t,
+}: {
+  players: Player[];
+  myPlayerId: string | null;
+  isSpectator: boolean;
+  isHost: boolean;
+  onToggleSpectator: () => Promise<void>;
+  onSubmitComment: (comment: string) => Promise<void>;
+  t: ReturnType<typeof useT>['t'];
+}) {
+  const spectators = players.filter(p => p.is_spectator);
+  const [comment, setComment] = useState('');
+  const [sending, setSending] = useState(false);
+
+  async function handleSend() {
+    if (!comment.trim()) return;
+    setSending(true);
+    await onSubmitComment(comment);
+    setSending(false);
+  }
+
+  if (spectators.length === 0 && !isSpectator) return null;
+
+  return (
+    <div className="card-casino !p-3">
+      <p className="text-green-400 font-semibold text-base mb-2">{t.play.spectators}</p>
+      {spectators.length === 0 ? (
+        <p className="text-green-800 text-sm">{t.play.noSpectators}</p>
+      ) : (
+        <div className="space-y-2">
+          {spectators.map(p => (
+            <div key={p.id} className="bg-[#145a32] rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <span className="text-green-300 font-medium text-sm">{p.name}</span>
+                  {p.id === myPlayerId && <span className="text-xs text-green-500">{t.common.you}</span>}
+                </div>
+                {p.id === myPlayerId && !isHost && (
+                  <button
+                    onClick={onToggleSpectator}
+                    className="text-xs text-green-500 hover:text-[#d4af37] border border-green-700 hover:border-[#d4af37] px-2 py-0.5 rounded transition-colors shrink-0"
+                  >
+                    {t.play.becomePlayer}
+                  </button>
+                )}
+              </div>
+              {p.comment && (
+                <p className="text-green-500 text-xs mt-1 break-words">💬 {p.comment}</p>
+              )}
+              {p.id === myPlayerId && isSpectator && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="text"
+                    value={comment}
+                    onChange={e => setComment(e.target.value.slice(0, 40))}
+                    onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && (e.preventDefault(), handleSend())}
+                    placeholder={t.play.commentPlaceholder}
+                    maxLength={40}
+                    className="flex-1 bg-[#0d3320] border border-green-800 rounded px-2 py-1
+                               text-white placeholder-green-700 focus:outline-none focus:border-green-600 text-xs"
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={sending || !comment.trim()}
+                    className="text-xs px-3 py-1 rounded bg-green-800 hover:bg-green-700 text-white
+                               disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t.play.commentSend}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
