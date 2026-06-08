@@ -236,6 +236,29 @@ export default function ResultClient() {
           </>
         )}
 
+        {/* 観戦者コメント */}
+        {players.filter(p => p.is_spectator && (p.comments ?? []).length > 0).length > 0 && (
+          <div className="card-casino mb-6">
+            <p className="text-green-400 font-semibold text-lg mb-3">👀 {t.play.spectators}</p>
+            <div className="space-y-3">
+              {players.filter(p => p.is_spectator).map(p => {
+                const comments = p.comments ?? [];
+                if (comments.length === 0) return null;
+                return (
+                  <div key={p.id} className="bg-[#145a32] rounded-lg px-3 py-2">
+                    <p className="text-green-300 font-medium text-sm mb-1">{p.name}</p>
+                    <div className="space-y-0.5">
+                      {comments.map((c, i) => (
+                        <p key={i} className="text-green-500 text-xs break-words">💬 {c}</p>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* イベントログ */}
         <div className="card-casino mb-6">
           <button
