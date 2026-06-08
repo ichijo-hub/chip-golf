@@ -88,7 +88,7 @@ export default function PlayClient() {
     const [playersSnap, chipDefsSnap, eventsSnap] = await Promise.all([
       getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
       getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
-      getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30))),
+      getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(500))),
     ]);
 
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
