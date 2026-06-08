@@ -91,6 +91,7 @@ export const en: Translations = {
     waitingForHost: 'Waiting for host to start the game...',
     gameNotFound: 'Game not found. Please check your room code.',
     errorOlympicNeedsHole: 'Hole settings are required when Olympic / Longest Drive / Niapin is enabled',
+    errorHoleRequired: 'Hole settings are required to start the game',
   },
   play: {
     field: 'Field',

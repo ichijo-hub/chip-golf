@@ -89,6 +89,7 @@ export const ja = {
     waitingForHost: 'ホストがゲームを開始するまでお待ちください...',
     gameNotFound: 'ゲームが見つかりません。ルームコードを確認してください。',
     errorOlympicNeedsHole: 'オリンピック・ドラコン・ニアピンを使用するにはホール設定が必要です',
+    errorHoleRequired: 'ゲームを開始するにはホール設定が必要です',
   },
   play: {
     field: '場',

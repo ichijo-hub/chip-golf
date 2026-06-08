@@ -11,7 +11,7 @@ import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
 import { Game, Player, HoleMode } from '@/types';
 
-const HOLE_MODES: HoleMode[] = ['none', '9h', '18h_out', '18h_in'];
+const HOLE_MODES: HoleMode[] = ['9h', '18h_out', '18h_in'];
 
 function holeModeData(mode: HoleMode) {
   if (mode === '9h')      return { total_holes: 9,  current_hole: 1 };
@@ -125,8 +125,8 @@ export default function LobbyClient() {
   }
 
   async function handleStartGame() {
-    if ((game?.olympic_enabled || game?.dracon_enabled || game?.niapin_enabled) && (!game.hole_mode || game.hole_mode === 'none')) {
-      setError(t.lobby.errorOlympicNeedsHole);
+    if (!game?.hole_mode || game.hole_mode === 'none') {
+      setError(t.lobby.errorHoleRequired);
       return;
     }
     setError('');
@@ -285,9 +285,8 @@ export default function LobbyClient() {
             <div className="card-casino">
               <p className="text-[#d4af37] font-semibold mb-3">{t.newGame.holeSetting}</p>
               <div className="grid grid-cols-2 gap-2">
-                {HOLE_MODES.filter(mode => !((game?.olympic_enabled || game?.dracon_enabled || game?.niapin_enabled) && mode === 'none')).map(mode => {
-                  const label = mode === 'none' ? t.newGame.holeNone
-                    : mode === '9h' ? t.newGame.hole9h
+                {HOLE_MODES.map(mode => {
+                  const label = mode === '9h' ? t.newGame.hole9h
                     : mode === '18h_out' ? t.newGame.hole18hOut
                     : t.newGame.hole18hIn;
                   const current = game?.hole_mode ?? 'none';
