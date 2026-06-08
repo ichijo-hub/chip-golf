@@ -128,7 +128,7 @@ export default function PlayClient() {
     });
 
     const unsubEvents = onSnapshot(
-      query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(30)),
+      query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(500)),
       (snap) => {
         setEvents(snap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
       }
