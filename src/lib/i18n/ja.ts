@@ -112,7 +112,7 @@ export const ja = {
     spectators: '👀 観戦者',
     noSpectators: '観戦者はいません',
     becomeSpectator: '観戦者になる',
-    becomePlayer: 'プレイヤーに戻る',
+    becomePlayer: 'プレイヤーになる',
     commentPlaceholder: 'コメント（40文字まで）',
     commentSend: '送信',
     chipsReturnedToField: '所持チップが場に戻ります',
