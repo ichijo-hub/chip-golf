@@ -129,7 +129,7 @@ export default function ResultClient() {
               {chips.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-3">
                   {chips.map((chipDef, j) => (
-                    <ChipBadge key={j} name={chipDef.name} chipType={chipDef.chip_type} imageUrl={chipDef.image_url} imageScale={chipDef.image_scale ?? undefined} imageOffsetY={chipDef.image_offset_y ?? undefined} pointValue={chipDef.point_value} size={48} isCustom={!chipDef.chip_template_id} />
+                    <ChipBadge key={j} name={chipDef.name} chipType={chipDef.chip_type} imageUrl={chipDef.image_url} imageScale={chipDef.image_scale ?? undefined} imageOffsetY={chipDef.image_offset_y ?? undefined} pointValue={chipDef.point_value} size={48} isCustom={!chipDef.chip_template_id} size={64} />
                   ))}
                 </div>
               )}
