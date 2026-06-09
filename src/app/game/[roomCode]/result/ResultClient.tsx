@@ -239,7 +239,7 @@ export default function ResultClient() {
         {/* 観戦者コメント */}
         {players.filter(p => p.is_spectator && (p.comments ?? []).length > 0).length > 0 && (
           <div className="card-casino mb-6">
-            <p className="text-green-400 font-semibold text-lg mb-3">👀 {t.play.spectators}</p>
+            <p className="text-green-400 font-semibold text-lg mb-3">👀 観戦ログ</p>
             <div className="space-y-3">
               {players.filter(p => p.is_spectator).map(p => {
                 const comments = p.comments ?? [];
@@ -270,7 +270,7 @@ export default function ResultClient() {
             <span className="text-green-500 text-base">{showLog ? t.result.closeLog : t.result.openLog}</span>
           </button>
           {showLog && (
-            <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
+            <div className="mt-2 space-y-1">
               {events.length === 0 ? (
                 <p className="text-green-700 text-base text-center py-2">{t.result.noEvents}</p>
               ) : (
