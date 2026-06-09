@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, collection, orderBy, query, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { getDeviceId } from '@/lib/deviceId';
 
@@ -10,13 +10,12 @@ export interface HistoryEntry {
   joinedAt: string; // ISO string
 }
 
-export async function saveToHistory(roomCode: string): Promise<void> {
+export async function saveToHistory(roomCode: string, joinedAt?: string): Promise<void> {
   const deviceId = await getDeviceId();
-  await setDoc(
-    doc(db, 'device_data', deviceId, 'game_history', roomCode),
-    { roomCode, joinedAt: new Date().toISOString() },
-    { merge: true }
-  );
+  const ref = doc(db, 'device_data', deviceId, 'game_history', roomCode);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return; // 既存の joinedAt を上書きしない
+  await setDoc(ref, { roomCode, joinedAt: joinedAt ?? new Date().toISOString() });
 }
 
 // 旧UUID（Device plugin未リンク時のフォールバック）→ 現在のdeviceIdへFirestore内でデータ移行

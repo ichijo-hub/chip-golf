@@ -87,7 +87,7 @@ export default function ResultClient() {
       setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
       setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
       setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
-      saveToHistory(roomCode).catch(() => {});
+      saveToHistory(roomCode, game.updated_at).catch(() => {});
       saveGameChipsToLibrary(loadedChipDefs);
       setLoading(false);
     }
