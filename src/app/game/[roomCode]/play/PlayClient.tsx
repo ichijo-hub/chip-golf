@@ -751,9 +751,8 @@ export default function PlayClient() {
               </div>
               {showHoleModeSelector && (
                 <div className="grid grid-cols-2 gap-2 mt-3">
-                  {(['none', '9h', '18h_out', '18h_in'] as HoleMode[]).filter(mode => !(anySideGameEnabled && mode === 'none')).map(mode => {
-                    const label = mode === 'none' ? t.newGame.holeNone
-                      : mode === '9h' ? t.newGame.hole9h
+                  {(['9h', '18h_out', '18h_in'] as HoleMode[]).map(mode => {
+                    const label = mode === '9h' ? t.newGame.hole9h
                       : mode === '18h_out' ? t.newGame.hole18hOut
                       : t.newGame.hole18hIn;
                     const current = game?.hole_mode ?? 'none';
