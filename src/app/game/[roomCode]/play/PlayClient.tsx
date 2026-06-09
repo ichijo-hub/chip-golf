@@ -23,6 +23,7 @@ import ChipBadge from '@/components/ChipBadge';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
+import { saveGameChipsToLibrary } from '@/lib/chipLibrary';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 
 interface ChipSelection {
@@ -96,8 +97,10 @@ export default function PlayClient() {
     ]);
 
     setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
-    setChipDefs(chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)).filter(c => c.is_active !== false));
+    const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+    setChipDefs(loadedChipDefs.filter(c => c.is_active !== false));
     setEvents(eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
+    saveGameChipsToLibrary(loadedChipDefs);
     setLoading(false);
   }, [roomCode, router]);
 

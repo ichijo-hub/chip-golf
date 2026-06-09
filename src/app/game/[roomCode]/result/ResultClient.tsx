@@ -9,6 +9,7 @@ import { calcOlympicTotals, OlympicPlayerTotal } from '@/lib/olympic';
 import { calcSingleWinnerTotals, SingleWinnerPlayerTotal } from '@/lib/singleWinner';
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
+import { saveGameChipsToLibrary } from '@/lib/chipLibrary';
 import { Game, Player, ChipDefinition, ChipState, GameEvent, OlympicHoleLog, SingleWinnerHoleLog } from '@/types';
 import { calculateScores, PlayerScore } from '@/lib/scoring';
 import ChipBadge from '@/components/ChipBadge';
@@ -87,6 +88,7 @@ export default function ResultClient() {
       setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
       setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
       saveToHistory(roomCode).catch(() => {});
+      saveGameChipsToLibrary(loadedChipDefs);
       setLoading(false);
     }
     load();

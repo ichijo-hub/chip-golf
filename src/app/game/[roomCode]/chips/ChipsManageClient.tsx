@@ -8,8 +8,8 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase/client';
-import { getDeviceId } from '@/lib/deviceId';
 import { Game, ChipDefinition, ChipType } from '@/types';
+import { saveChipToLibrary } from '@/lib/chipLibrary';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
@@ -120,27 +120,7 @@ export default function ChipsManageClient() {
   }
 
   async function saveToLibrary(chip: ChipDefinition) {
-    if (chip.chip_template_id !== null) return;
-    try {
-      const deviceId = await getDeviceId();
-      const key = `${chip.name}__${chip.chip_type}`;
-      await setDoc(
-        doc(db, 'device_data', deviceId, 'chip_library', key),
-        {
-          name: chip.name,
-          chip_type: chip.chip_type,
-          point_value: chip.point_value,
-          image_url: chip.image_url ?? null,
-          image_scale: chip.image_scale ?? null,
-          image_offset_y: chip.image_offset_y ?? null,
-          condition: chip.condition ?? null,
-          updated_at: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    } catch {
-      // ライブラリ保存失敗は無視（ゲームの操作には影響しない）
-    }
+    saveChipToLibrary(chip).catch(() => {});
   }
 
   async function handleAddAllFromLibrary() {
