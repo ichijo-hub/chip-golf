@@ -148,6 +148,7 @@ export const ja = {
     showDeleted: '削除済み',
     deletedChips: '削除済みオリジナルチップ',
     deleteFromLibrary: 'ライブラリから削除',
+    permanentDelete: '完全に削除',
     restoreFromLibrary: '復活させる',
     addCustom: 'オリジナルチップを追加',
     typePositive: '＋ ポジティブ',

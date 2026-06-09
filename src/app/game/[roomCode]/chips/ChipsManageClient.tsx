@@ -145,6 +145,16 @@ export default function ChipsManageClient() {
     setLibraryModal(null);
   }
 
+  async function handlePermanentDeleteLibraryChip(chip: LibraryChip) {
+    try {
+      const deviceId = await getDeviceId();
+      const key = `${chip.name}__${chip.chip_type}`;
+      await deleteDoc(doc(db, 'device_data', deviceId, 'chip_library', key));
+      setDeletedChips(prev => prev.filter(c => !(c.name === chip.name && c.chip_type === chip.chip_type)));
+    } catch { /* 無視 */ }
+    setLibraryModal(null);
+  }
+
   async function saveToLibrary(chip: ChipDefinition) {
     saveChipToLibrary(chip).catch(() => {});
   }
@@ -318,12 +328,20 @@ export default function ChipsManageClient() {
             </div>
             <div className="space-y-2">
               {libraryModal.isDeleted ? (
-                <button
-                  onClick={() => handleRestoreLibraryChip(libraryModal.chip)}
-                  className="btn-gold w-full py-3"
-                >
-                  {t.chipsManage.restoreFromLibrary}
-                </button>
+                <>
+                  <button
+                    onClick={() => handleRestoreLibraryChip(libraryModal.chip)}
+                    className="btn-gold w-full py-3"
+                  >
+                    {t.chipsManage.restoreFromLibrary}
+                  </button>
+                  <button
+                    onClick={() => handlePermanentDeleteLibraryChip(libraryModal.chip)}
+                    className="w-full py-3 rounded-lg border border-red-800 text-red-400 hover:border-red-600 hover:text-red-300 transition-colors"
+                  >
+                    {t.chipsManage.permanentDelete}
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -539,7 +557,7 @@ export default function ChipsManageClient() {
                     <div className="mt-3">
                       <button
                         onClick={() => setShowDeleted(v => !v)}
-                        className="text-xs text-green-600 hover:text-green-400 underline transition-colors"
+                        className="text-sm text-green-600 hover:text-green-400 underline transition-colors"
                       >
                         {t.chipsManage.showDeleted}（{deletedChips.length}）
                       </button>

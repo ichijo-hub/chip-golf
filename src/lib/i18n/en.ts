@@ -150,6 +150,7 @@ export const en: Translations = {
     showDeleted: 'Deleted',
     deletedChips: 'Deleted Original Chips',
     deleteFromLibrary: 'Remove from Library',
+    permanentDelete: 'Delete Permanently',
     restoreFromLibrary: 'Restore',
     addCustom: 'Add Original Chip',
     typePositive: '+ Positive',
