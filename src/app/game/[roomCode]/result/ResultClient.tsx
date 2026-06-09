@@ -51,7 +51,6 @@ export default function ResultClient() {
   const [draconTotals, setDraconTotals] = useState<SingleWinnerPlayerTotal[]>([]);
   const [niapinTotals, setNiapinTotals] = useState<SingleWinnerPlayerTotal[]>([]);
   const [sideGames, setSideGames] = useState({ olympic: false, dracon: false, niapin: false });
-  const [debugMsg, setDebugMsg] = useState('');
 
   useEffect(() => {
     if (!roomCode) { router.push('/'); return; }
@@ -87,9 +86,7 @@ export default function ResultClient() {
       setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
       setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
       setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
-      saveToHistory(roomCode)
-        .then(() => setDebugMsg(`OK: deviceId取得・書込み成功 room=${roomCode}`))
-        .catch((e) => setDebugMsg(`ERR: ${String(e)}`));
+      saveToHistory(roomCode).catch(() => {});
       setLoading(false);
     }
     load();
@@ -315,9 +312,6 @@ export default function ResultClient() {
         </div>
       </div>
       <AdBanner />
-      {debugMsg && (
-        <p className="text-xs text-yellow-400 text-center px-4 pb-4 break-all">{debugMsg}</p>
-      )}
     </main>
   );
 }
