@@ -23,6 +23,7 @@ interface LibraryChip {
   image_scale: number | null;
   image_offset_y: number | null;
   condition: string | null;
+  deleted?: boolean;
 }
 
 interface EditingChip {
@@ -57,7 +58,10 @@ export default function ChipsManageClient() {
   const [loading, setLoading] = useState(true);
   const [isSpectator, setIsSpectator] = useState(false);
   const [libraryChips, setLibraryChips] = useState<LibraryChip[]>([]);
+  const [deletedChips, setDeletedChips] = useState<LibraryChip[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [libraryModal, setLibraryModal] = useState<{ chip: LibraryChip; isDeleted: boolean } | null>(null);
   const [editing, setEditing] = useState<EditingChip | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -109,15 +113,36 @@ export default function ChipsManageClient() {
       const currentKeys = new Set(
         currentChips.filter(c => !c.chip_template_id).map(c => `${c.name}__${c.chip_type}`)
       );
-      const result = snap.docs
-        .map(d => d.data() as LibraryChip)
-        .filter(c => !currentKeys.has(`${c.name}__${c.chip_type}`));
-      setLibraryChips(result);
+      const all = snap.docs.map(d => d.data() as LibraryChip);
+      setLibraryChips(all.filter(c => !c.deleted && !currentKeys.has(`${c.name}__${c.chip_type}`)));
+      setDeletedChips(all.filter(c => c.deleted));
     } catch {
       // ライブラリ読み込み失敗は無視
     } finally {
       setLibraryLoading(false);
     }
+  }
+
+  async function handleDeleteLibraryChip(chip: LibraryChip) {
+    try {
+      const deviceId = await getDeviceId();
+      const key = `${chip.name}__${chip.chip_type}`;
+      await setDoc(doc(db, 'device_data', deviceId, 'chip_library', key), { deleted: true }, { merge: true });
+      setLibraryChips(prev => prev.filter(c => !(c.name === chip.name && c.chip_type === chip.chip_type)));
+      setDeletedChips(prev => [...prev, { ...chip, deleted: true }]);
+    } catch { /* 無視 */ }
+    setLibraryModal(null);
+  }
+
+  async function handleRestoreLibraryChip(chip: LibraryChip) {
+    try {
+      const deviceId = await getDeviceId();
+      const key = `${chip.name}__${chip.chip_type}`;
+      await setDoc(doc(db, 'device_data', deviceId, 'chip_library', key), { deleted: false }, { merge: true });
+      setDeletedChips(prev => prev.filter(c => !(c.name === chip.name && c.chip_type === chip.chip_type)));
+      setLibraryChips(prev => [...prev, { ...chip, deleted: false }]);
+    } catch { /* 無視 */ }
+    setLibraryModal(null);
   }
 
   async function saveToLibrary(chip: ChipDefinition) {
@@ -274,6 +299,58 @@ export default function ChipsManageClient() {
 
   return (
     <>
+      {libraryModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setLibraryModal(null)}>
+          <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center mb-4">
+              <div className={libraryModal.isDeleted ? 'opacity-40' : ''}>
+                <ChipBadge
+                  name={libraryModal.chip.name}
+                  chipType={libraryModal.chip.chip_type}
+                  imageUrl={libraryModal.chip.image_url}
+                  imageScale={libraryModal.chip.image_scale ?? undefined}
+                  imageOffsetY={libraryModal.chip.image_offset_y ?? undefined}
+                  pointValue={libraryModal.chip.point_value}
+                  size={96}
+                  isCustom={true}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              {libraryModal.isDeleted ? (
+                <button
+                  onClick={() => handleRestoreLibraryChip(libraryModal.chip)}
+                  className="btn-gold w-full py-3"
+                >
+                  {t.chipsManage.restoreFromLibrary}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { handleAddFromLibrary(libraryModal.chip); setLibraryModal(null); }}
+                    className="btn-gold w-full py-3"
+                  >
+                    {t.common.add}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteLibraryChip(libraryModal.chip)}
+                    className="w-full py-3 rounded-lg border border-red-800 text-red-400 hover:border-red-600 hover:text-red-300 transition-colors"
+                  >
+                    {t.chipsManage.deleteFromLibrary}
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setLibraryModal(null)}
+                className="w-full py-3 rounded-lg border border-green-800 text-green-500 hover:border-green-600 transition-colors"
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editing && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => { setEditing(null); setConfirmDelete(false); }}>
           <div className="card-casino w-full max-w-md overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
@@ -441,28 +518,52 @@ export default function ChipsManageClient() {
               {libraryLoading ? (
                 <p className="text-green-600 text-sm">{t.common.loading}</p>
               ) : (
-                <div className="flex flex-wrap gap-3">
-                  {libraryChips.map((chip, i) => (
-                    <div key={i} className="flex flex-col items-center gap-1">
-                      <ChipBadge
-                        name={chip.name}
-                        chipType={chip.chip_type}
-                        imageUrl={chip.image_url}
-                        imageScale={chip.image_scale ?? undefined}
-                        imageOffsetY={chip.image_offset_y ?? undefined}
-                        pointValue={chip.point_value}
-                        size={64}
-                        isCustom={true}
-                      />
-                      <button
-                        onClick={() => handleAddFromLibrary(chip)}
-                        className="text-xs px-2 py-0.5 rounded bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors"
-                      >
-                        {t.common.add}
+                <>
+                  <div className="flex flex-wrap gap-3">
+                    {libraryChips.map((chip, i) => (
+                      <button key={i} className="flex flex-col items-center gap-1" onClick={() => setLibraryModal({ chip, isDeleted: false })}>
+                        <ChipBadge
+                          name={chip.name}
+                          chipType={chip.chip_type}
+                          imageUrl={chip.image_url}
+                          imageScale={chip.image_scale ?? undefined}
+                          imageOffsetY={chip.image_offset_y ?? undefined}
+                          pointValue={chip.point_value}
+                          size={64}
+                          isCustom={true}
+                        />
                       </button>
+                    ))}
+                  </div>
+                  {deletedChips.length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setShowDeleted(v => !v)}
+                        className="text-xs text-green-600 hover:text-green-400 underline transition-colors"
+                      >
+                        {t.chipsManage.showDeleted}（{deletedChips.length}）
+                      </button>
+                      {showDeleted && (
+                        <div className="flex flex-wrap gap-3 mt-2">
+                          {deletedChips.map((chip, i) => (
+                            <button key={i} className="flex flex-col items-center gap-1 opacity-40" onClick={() => setLibraryModal({ chip, isDeleted: true })}>
+                              <ChipBadge
+                                name={chip.name}
+                                chipType={chip.chip_type}
+                                imageUrl={chip.image_url}
+                                imageScale={chip.image_scale ?? undefined}
+                                imageOffsetY={chip.image_offset_y ?? undefined}
+                                pointValue={chip.point_value}
+                                size={64}
+                                isCustom={true}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               )}
             </div>
           )}
