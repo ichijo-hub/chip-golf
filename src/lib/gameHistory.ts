@@ -24,15 +24,19 @@ async function migrateOldUuidData(deviceId: string): Promise<void> {
   const oldUUID = localStorage.getItem(LEGACY_DEVICE_ID_KEY);
   if (!oldUUID || oldUUID === deviceId) return;
   try {
-    const oldSnap = await getDocs(collection(db, 'device_data', oldUUID, 'game_history'));
-    if (oldSnap.empty) return;
-    await Promise.all(oldSnap.docs.map(d =>
-      setDoc(doc(db, 'device_data', deviceId, 'game_history', d.id), d.data(), { merge: true })
-    ));
-    // 旧パスを削除し、旧UUIDキーも削除
-    await Promise.all(oldSnap.docs.map(d =>
-      deleteDoc(doc(db, 'device_data', oldUUID, 'game_history', d.id))
-    ));
+    const [historySnap, librarySnap] = await Promise.all([
+      getDocs(collection(db, 'device_data', oldUUID, 'game_history')),
+      getDocs(collection(db, 'device_data', oldUUID, 'chip_library')),
+    ]);
+    const allDocs = [...historySnap.docs, ...librarySnap.docs];
+    if (allDocs.length === 0) { localStorage.removeItem(LEGACY_DEVICE_ID_KEY); return; }
+    // 新パスへコピー
+    await Promise.all(allDocs.map(d => {
+      const sub = d.ref.parent.id; // 'game_history' or 'chip_library'
+      return setDoc(doc(db, 'device_data', deviceId, sub, d.id), d.data(), { merge: true });
+    }));
+    // 旧パスを削除
+    await Promise.all(allDocs.map(d => deleteDoc(d.ref)));
     localStorage.removeItem(LEGACY_DEVICE_ID_KEY);
   } catch {
     // 失敗時は次回リトライ
