@@ -12,6 +12,12 @@ service cloud.firestore {
     }
 
     // ゲームとサブコレクション
+    // デバイスごとのゲーム履歴（デバイスIDで分離、認証なしのため全許可）
+    match /device_data/{deviceId}/game_history/{roomCode} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     match /games/{roomCode} {
       allow read: if true;
       allow create: if true;
