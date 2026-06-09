@@ -86,7 +86,7 @@ export default function ResultClient() {
       setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
       setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
       setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
-      saveToHistory(roomCode).catch(() => {});
+      saveToHistory(roomCode).catch((e) => console.error('[saveToHistory]', e));
       setLoading(false);
     }
     load();
