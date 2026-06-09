@@ -208,7 +208,7 @@ export default function HomeClient() {
         className="fixed left-0 right-0 bg-[#0d3d22] border-t border-green-900 flex justify-center items-center pt-4"
         style={{
           bottom: isNative ? 60 : 0,
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 60px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
         }}
       >
         <button onClick={() => router.push('/history')} className="text-green-600 text-sm hover:text-green-400 transition-colors">
