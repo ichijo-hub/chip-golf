@@ -54,7 +54,6 @@ export const en: Translations = {
     hostNameLabel: 'Your Name (Host)',
     hostNamePlaceholder: 'Enter your name',
     holeSetting: 'Hole Settings',
-    holeNone: 'No tracking',
     hole9h: '9 Holes',
     hole18hOut: '18H OUT Start',
     hole18hIn: '18H IN Start',

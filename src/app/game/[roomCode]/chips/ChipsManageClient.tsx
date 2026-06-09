@@ -43,7 +43,6 @@ export default function ChipsManageClient() {
   const [game, setGame] = useState<Game | null>(null);
   const [chips, setChips] = useState<ChipDefinition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [isSpectator, setIsSpectator] = useState(false);
   const [editing, setEditing] = useState<EditingChip | null>(null);
   const [saving, setSaving] = useState(false);
@@ -75,8 +74,6 @@ export default function ChipsManageClient() {
   }, [roomCode]);
 
   useEffect(() => {
-    const savedId = localStorage.getItem(`player_${roomCode}`);
-    if (savedId) setMyPlayerId(savedId);
     loadData();
   }, [roomCode, loadData]);
 

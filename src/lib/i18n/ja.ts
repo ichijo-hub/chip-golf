@@ -52,7 +52,6 @@ export const ja = {
     hostNameLabel: 'あなたの名前（ホスト）',
     hostNamePlaceholder: '名前を入力',
     holeSetting: 'ホール設定',
-    holeNone: '設定なし',
     hole9h: '9ホール',
     hole18hOut: '18H OUTスタート',
     hole18hIn: '18H INスタート',

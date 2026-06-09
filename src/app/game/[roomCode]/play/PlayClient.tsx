@@ -239,7 +239,7 @@ export default function PlayClient() {
   // ---- hole mode change (host only) ----
 
   async function changeHoleMode(mode: HoleMode) {
-    const total_holes = mode === '9h' ? 9 : mode === 'none' ? 0 : 18;
+    const total_holes = mode === '9h' ? 9 : 18;
     const current_hole = mode === '18h_in' ? 10 : 1;
     await updateDoc(doc(db, 'games', roomCode), { hole_mode: mode, total_holes, current_hole });
     setShowHoleModeSelector(false);
