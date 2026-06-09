@@ -9,6 +9,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase/client';
 import { Game, ChipDefinition, ChipType } from '@/types';
+import { getDeviceId } from '@/lib/deviceId';
 import { saveChipToLibrary } from '@/lib/chipLibrary';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
