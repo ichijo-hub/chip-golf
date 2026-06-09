@@ -143,6 +143,12 @@ export default function ChipsManageClient() {
     }
   }
 
+  async function handleAddAllFromLibrary() {
+    for (const chip of libraryChips) {
+      await handleAddFromLibrary(chip);
+    }
+  }
+
   async function handleAddFromLibrary(chip: LibraryChip) {
     if (!game) return;
     const chipDefRef = await addDoc(collection(db, 'games', roomCode, 'chip_definitions'), {
@@ -442,7 +448,15 @@ export default function ChipsManageClient() {
 
           {(libraryLoading || libraryChips.length > 0) && (
             <div className="card-casino mb-4">
-              <p className="text-[#d4af37] font-semibold mb-3">📦 {t.chipsManage.pastChips}</p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[#d4af37] font-semibold">📦 {t.chipsManage.pastChips}</p>
+                <button
+                  onClick={handleAddAllFromLibrary}
+                  className="text-xs px-3 py-1 rounded bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors"
+                >
+                  {t.chipsManage.addAllChips}
+                </button>
+              </div>
               {libraryLoading ? (
                 <p className="text-green-600 text-sm">{t.common.loading}</p>
               ) : (

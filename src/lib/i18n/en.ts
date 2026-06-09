@@ -146,6 +146,7 @@ export const en: Translations = {
     sectionPositive: 'Positive Chips',
     sectionNegative: 'Negative Chips',
     pastChips: 'Previously Used Original Chips',
+    addAllChips: 'Add All',
     addCustom: 'Add Original Chip',
     typePositive: '+ Positive',
     typeNegative: '− Negative',
