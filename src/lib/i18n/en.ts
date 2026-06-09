@@ -145,6 +145,7 @@ export const en: Translations = {
     backToGame: '← Back to Game',
     sectionPositive: 'Positive Chips',
     sectionNegative: 'Negative Chips',
+    pastChips: 'Previous Custom Chips',
     addCustom: 'Add Custom Chip',
     typePositive: '+ Positive',
     typeNegative: '− Negative',

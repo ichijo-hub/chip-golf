@@ -4,14 +4,25 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
-  query, orderBy,
+  query, orderBy, setDoc,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase/client';
+import { getDeviceId } from '@/lib/deviceId';
 import { Game, ChipDefinition, ChipType } from '@/types';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
+
+interface LibraryChip {
+  name: string;
+  chip_type: ChipType;
+  point_value: number;
+  image_url: string | null;
+  image_scale: number | null;
+  image_offset_y: number | null;
+  condition: string | null;
+}
 
 interface EditingChip {
   id: string;
@@ -44,6 +55,8 @@ export default function ChipsManageClient() {
   const [chips, setChips] = useState<ChipDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSpectator, setIsSpectator] = useState(false);
+  const [libraryChips, setLibraryChips] = useState<LibraryChip[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
   const [editing, setEditing] = useState<EditingChip | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,7 +76,8 @@ export default function ChipsManageClient() {
     if (!gameSnap.exists()) { setLoading(false); return; }
     const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
     setGame(g);
-    setChips(chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)));
+    const currentChips = chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+    setChips(currentChips);
     if (savedId) {
       const playerSnap = await getDoc(doc(db, 'games', roomCode, 'players', savedId));
       if (playerSnap.exists()) {
@@ -71,6 +85,7 @@ export default function ChipsManageClient() {
       }
     }
     setLoading(false);
+    loadLibrary(currentChips);
   }, [roomCode]);
 
   useEffect(() => {
@@ -84,6 +99,70 @@ export default function ChipsManageClient() {
       router.push(dest);
     }
   }, [loading, game, isSpectator, roomCode, router]);
+
+  async function loadLibrary(currentChips: ChipDefinition[]) {
+    setLibraryLoading(true);
+    try {
+      const deviceId = await getDeviceId();
+      const snap = await getDocs(collection(db, 'device_data', deviceId, 'chip_library'));
+      const currentKeys = new Set(
+        currentChips.filter(c => !c.chip_template_id).map(c => `${c.name}__${c.chip_type}`)
+      );
+      const result = snap.docs
+        .map(d => d.data() as LibraryChip)
+        .filter(c => !currentKeys.has(`${c.name}__${c.chip_type}`));
+      setLibraryChips(result);
+    } catch {
+      // ライブラリ読み込み失敗は無視
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
+  async function saveToLibrary(chip: ChipDefinition) {
+    if (chip.chip_template_id !== null) return;
+    try {
+      const deviceId = await getDeviceId();
+      const key = `${chip.name}__${chip.chip_type}`;
+      await setDoc(
+        doc(db, 'device_data', deviceId, 'chip_library', key),
+        {
+          name: chip.name,
+          chip_type: chip.chip_type,
+          point_value: chip.point_value,
+          image_url: chip.image_url ?? null,
+          image_scale: chip.image_scale ?? null,
+          image_offset_y: chip.image_offset_y ?? null,
+          condition: chip.condition ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch {
+      // ライブラリ保存失敗は無視（ゲームの操作には影響しない）
+    }
+  }
+
+  async function handleAddFromLibrary(chip: LibraryChip) {
+    if (!game) return;
+    const chipDefRef = await addDoc(collection(db, 'games', roomCode, 'chip_definitions'), {
+      id: '', game_id: roomCode, name: chip.name,
+      chip_type: chip.chip_type, point_value: chip.point_value,
+      chip_template_id: null, is_default: false, is_active: true,
+      sort_order: chips.length,
+      image_url: chip.image_url ?? null,
+      image_scale: chip.image_scale ?? null,
+      image_offset_y: chip.image_offset_y ?? null,
+      condition: chip.condition ?? null,
+    });
+    await updateDoc(chipDefRef, { id: chipDefRef.id });
+    const stateRef = await addDoc(collection(db, 'games', roomCode, 'chip_states'), {
+      id: '', game_id: roomCode, chip_definition_id: chipDefRef.id,
+      holder_player_id: null, updated_at: new Date().toISOString(),
+    });
+    await updateDoc(stateRef, { id: stateRef.id });
+    loadData();
+  }
 
   function openEdit(chip: ChipDefinition) {
     setEditing({
@@ -138,6 +217,17 @@ export default function ChipsManageClient() {
       ...(editing.chip_template_id ? {} : { image_url: imageUrl }),
     });
 
+    // 限定チップをライブラリに保存（失敗しても無視）
+    if (!editing.chip_template_id) {
+      const saved: ChipDefinition = {
+        id: editing.id, game_id: roomCode, name: editing.name.trim(),
+        chip_type: editing.chip_type, point_value: editing.point_value,
+        image_url: imageUrl, image_scale: editing.image_scale,
+        image_offset_y: editing.image_offset_y, condition: editing.condition.trim() || null,
+        chip_template_id: null, is_default: false, is_active: editing.is_active, sort_order: 0,
+      };
+      saveToLibrary(saved);
+    }
     setSaving(false);
     setEditing(null);
     loadData();
@@ -175,6 +265,14 @@ export default function ChipsManageClient() {
       holder_player_id: null, updated_at: new Date().toISOString(),
     });
     await updateDoc(stateRef, { id: stateRef.id });
+    // 限定チップをライブラリに保存
+    saveToLibrary({
+      id: chipDefRef.id, game_id: roomCode, name: newChipName.trim(),
+      chip_type: newChipType, point_value: newChipPoints,
+      chip_template_id: null, is_default: false, is_active: true,
+      sort_order: chips.length, image_url: null,
+      image_scale: null, image_offset_y: null, condition: null,
+    });
     setNewChipName('');
     setAdding(false);
     loadData();
@@ -341,6 +439,42 @@ export default function ChipsManageClient() {
               {negativeChips.length === 0 && <p className="text-green-700 text-sm">{t.chipsManage.noChips}</p>}
             </div>
           </div>
+
+          {(libraryLoading || libraryChips.length > 0) && (
+            <div className="card-casino mb-4">
+              <p className="text-[#d4af37] font-semibold mb-3">📦 {t.chipsManage.pastChips}</p>
+              {libraryLoading ? (
+                <p className="text-green-600 text-sm">{t.common.loading}</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {libraryChips.map((chip, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      <ChipBadge
+                        name={chip.name}
+                        chipType={chip.chip_type}
+                        imageUrl={chip.image_url}
+                        imageScale={chip.image_scale ?? undefined}
+                        imageOffsetY={chip.image_offset_y ?? undefined}
+                        pointValue={chip.point_value}
+                        size={48}
+                        isCustom={true}
+                        showLabel={false}
+                      />
+                      <span className="text-green-300 text-xs text-center" style={{ maxWidth: 56, lineHeight: 1.2 }}>
+                        {chip.name.length > 5 ? chip.name.slice(0, 5) + '…' : chip.name}
+                      </span>
+                      <button
+                        onClick={() => handleAddFromLibrary(chip)}
+                        className="text-xs px-2 py-0.5 rounded bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors"
+                      >
+                        {t.common.add}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="card-casino mb-4">
             <p className="text-[#d4af37] font-semibold mb-3">{t.chipsManage.addCustom}</p>

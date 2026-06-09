@@ -31,7 +31,7 @@ export default function HomeClient() {
 
   useEffect(() => {
     async function loadActiveGames() {
-      const history = loadHistory();
+      const history = await loadHistory();
       if (history.length === 0) return;
 
       // ゲームドキュメントを並列フェッチ

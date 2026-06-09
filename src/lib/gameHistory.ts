@@ -1,25 +1,48 @@
-const KEY = 'chip_golf_history';
+import { doc, setDoc, getDocs, collection, orderBy, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
+import { getDeviceId } from '@/lib/deviceId';
+
+const LEGACY_KEY = 'chip_golf_history';
 
 export interface HistoryEntry {
   roomCode: string;
   joinedAt: string; // ISO string
 }
 
-export function saveToHistory(roomCode: string) {
-  const entries = loadHistory();
-  const exists = entries.some(e => e.roomCode === roomCode);
-  if (!exists) {
-    entries.unshift({ roomCode, joinedAt: new Date().toISOString() });
-    // 最大50件保持
-    localStorage.setItem(KEY, JSON.stringify(entries.slice(0, 50)));
-  }
+export async function saveToHistory(roomCode: string): Promise<void> {
+  const deviceId = await getDeviceId();
+  await setDoc(
+    doc(db, 'device_data', deviceId, 'game_history', roomCode),
+    { roomCode, joinedAt: new Date().toISOString() },
+    { merge: true }
+  );
 }
 
-export function loadHistory(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as HistoryEntry[]) : [];
-  } catch {
-    return [];
+export async function loadHistory(): Promise<HistoryEntry[]> {
+  const deviceId = await getDeviceId();
+
+  // localStorage からの1回限りマイグレーション
+  const legacy = localStorage.getItem(LEGACY_KEY);
+  if (legacy) {
+    try {
+      const entries = JSON.parse(legacy) as HistoryEntry[];
+      await Promise.all(
+        entries.map(e =>
+          setDoc(
+            doc(db, 'device_data', deviceId, 'game_history', e.roomCode),
+            { roomCode: e.roomCode, joinedAt: e.joinedAt },
+            { merge: true }
+          )
+        )
+      );
+    } catch {
+      // マイグレーション失敗は無視
+    }
+    localStorage.removeItem(LEGACY_KEY);
   }
+
+  const snap = await getDocs(
+    query(collection(db, 'device_data', deviceId, 'game_history'), orderBy('joinedAt', 'desc'))
+  );
+  return snap.docs.map(d => d.data() as HistoryEntry);
 }

@@ -143,6 +143,7 @@ export const ja = {
     backToGame: '← ゲームに戻る',
     sectionPositive: 'ポジティブチップ',
     sectionNegative: 'ネガティブチップ',
+    pastChips: '過去の限定チップ',
     addCustom: 'このゲーム限定チップを追加',
     typePositive: '＋ ポジティブ',
     typeNegative: '－ ネガティブ',

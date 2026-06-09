@@ -112,7 +112,7 @@ export default function NewGameClient() {
       await updateDoc(gameRef, { host_player_id: playerId });
 
       localStorage.setItem(`player_${roomCode}`, playerId);
-      saveToHistory(roomCode);
+      await saveToHistory(roomCode);
       localStorage.setItem('currentRoomCode', roomCode);
       router.push(`/game/__placeholder__/lobby?room=${roomCode}`);
     } catch (err) {

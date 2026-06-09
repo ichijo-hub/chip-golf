@@ -110,7 +110,7 @@ export default function LobbyClient() {
       await updateDoc(playerRef, { id: playerRef.id });
 
       localStorage.setItem(`player_${roomCode}`, playerRef.id);
-      saveToHistory(roomCode);
+      await saveToHistory(roomCode);
       setMyPlayerId(playerRef.id);
 
       if (game.status === 'playing') {

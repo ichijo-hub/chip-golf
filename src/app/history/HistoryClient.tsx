@@ -30,7 +30,7 @@ export default function HistoryClient() {
 
   useEffect(() => {
     async function load() {
-      const history = loadHistory().slice(0, 15); // 最大15件
+      const history = (await loadHistory()).slice(0, 15); // 最大15件
       if (history.length === 0) { setLoading(false); return; }
 
       // ローディング解除して空状態を即表示し、ゲームを並列取得して逐次追加
