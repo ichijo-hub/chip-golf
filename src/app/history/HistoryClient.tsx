@@ -30,46 +30,47 @@ export default function HistoryClient() {
 
   useEffect(() => {
     async function load() {
-      const history = (await loadHistory()).slice(0, 15); // 最大15件
-      if (history.length === 0) { setLoading(false); return; }
+      try {
+        const history = (await loadHistory()).slice(0, 15); // 最大15件
+        setLoading(false);
+        if (history.length === 0) return;
 
-      // ローディング解除して空状態を即表示し、ゲームを並列取得して逐次追加
-      setLoading(false);
+        await Promise.all(history.map(async (entry) => {
+          try {
+            const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
+            if (!gameSnap.exists()) return;
+            const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
 
-      await Promise.all(history.map(async (entry) => {
-        try {
-          const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
-          if (!gameSnap.exists()) return;
-          const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+            const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
+              getDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
+              getDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
+              getDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
+            ]);
 
-          const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
-            getDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
-            getDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
-            getDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
-          ]);
+            const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+            const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+            const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
+            const scores = calculateScores(players, chipStates, chipDefs);
 
-          const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-          const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-          const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
-          const scores = calculateScores(players, chipStates, chipDefs);
+            const summary: GameSummary = {
+              game,
+              players,
+              netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
+              joinedAt: entry.joinedAt,
+            };
 
-          const summary: GameSummary = {
-            game,
-            players,
-            netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
-            joinedAt: entry.joinedAt,
-          };
-
-          // 取得完了したものから随時追加（新しい参加順を維持）
-          setSummaries(prev =>
-            [...prev, summary].sort(
-              (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-            )
-          );
-        } catch {
-          // 個別エラーは無視して他のゲームを継続
-        }
-      }));
+            setSummaries(prev =>
+              [...prev, summary].sort(
+                (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+              )
+            );
+          } catch {
+            // 個別エラーは無視して他のゲームを継続
+          }
+        }));
+      } catch {
+        setLoading(false);
+      }
     }
     load();
   }, []);
