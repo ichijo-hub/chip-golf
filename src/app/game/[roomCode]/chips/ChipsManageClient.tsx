@@ -456,13 +456,9 @@ export default function ChipsManageClient() {
                         imageScale={chip.image_scale ?? undefined}
                         imageOffsetY={chip.image_offset_y ?? undefined}
                         pointValue={chip.point_value}
-                        size={48}
+                        size={64}
                         isCustom={true}
-                        showLabel={false}
                       />
-                      <span className="text-green-300 text-xs text-center" style={{ maxWidth: 56, lineHeight: 1.2 }}>
-                        {chip.name.length > 5 ? chip.name.slice(0, 5) + '…' : chip.name}
-                      </span>
                       <button
                         onClick={() => handleAddFromLibrary(chip)}
                         className="text-xs px-2 py-0.5 rounded bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors"
