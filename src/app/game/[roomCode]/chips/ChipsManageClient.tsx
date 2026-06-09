@@ -44,6 +44,7 @@ export default function ChipsManageClient() {
   const [chips, setChips] = useState<ChipDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [isSpectator, setIsSpectator] = useState(false);
   const [editing, setEditing] = useState<EditingChip | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -54,12 +55,21 @@ export default function ChipsManageClient() {
 
   const loadData = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
-    const gameSnap = await getDoc(doc(db, 'games', roomCode));
+    const savedId = localStorage.getItem(`player_${roomCode}`);
+    const [gameSnap, chipsSnap] = await Promise.all([
+      getDoc(doc(db, 'games', roomCode)),
+      getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
+    ]);
     if (!gameSnap.exists()) { setLoading(false); return; }
     const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
     setGame(g);
-    const chipsSnap = await getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order')));
     setChips(chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition)));
+    if (savedId) {
+      const playerSnap = await getDoc(doc(db, 'games', roomCode, 'players', savedId));
+      if (playerSnap.exists()) {
+        setIsSpectator(!!(playerSnap.data() as { is_spectator?: boolean }).is_spectator);
+      }
+    }
     setLoading(false);
   }, [roomCode]);
 
@@ -70,12 +80,12 @@ export default function ChipsManageClient() {
   }, [roomCode, loadData]);
 
   useEffect(() => {
-    if (!loading && game && myPlayerId && myPlayerId !== game.host_player_id) {
+    if (!loading && game && isSpectator) {
       const dest = game.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`;
       localStorage.setItem('currentRoomCode', roomCode);
       router.push(dest);
     }
-  }, [loading, game, myPlayerId, roomCode, router]);
+  }, [loading, game, isSpectator, roomCode, router]);
 
   function openEdit(chip: ChipDefinition) {
     setEditing({
