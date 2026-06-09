@@ -20,14 +20,14 @@ export async function saveToHistory(roomCode: string): Promise<void> {
 
 export async function loadHistory(): Promise<HistoryEntry[]> {
   const deviceId = await getDeviceId();
+  const legacyRaw = localStorage.getItem(LEGACY_KEY);
+  const legacyEntries: HistoryEntry[] = legacyRaw ? (() => { try { return JSON.parse(legacyRaw); } catch { return []; } })() : [];
 
-  // localStorage からの1回限りマイグレーション
-  const legacy = localStorage.getItem(LEGACY_KEY);
-  if (legacy) {
+  // Firestore への移行（成功時のみ localStorage を削除）
+  if (legacyEntries.length > 0) {
     try {
-      const entries = JSON.parse(legacy) as HistoryEntry[];
       await Promise.all(
-        entries.map(e =>
+        legacyEntries.map(e =>
           setDoc(
             doc(db, 'device_data', deviceId, 'game_history', e.roomCode),
             { roomCode: e.roomCode, joinedAt: e.joinedAt },
@@ -35,14 +35,21 @@ export async function loadHistory(): Promise<HistoryEntry[]> {
           )
         )
       );
+      localStorage.removeItem(LEGACY_KEY); // 書き込み成功後のみ削除
     } catch {
-      // マイグレーション失敗は無視
+      // 移行失敗時は localStorage を保持し次回リトライ
     }
-    localStorage.removeItem(LEGACY_KEY);
   }
 
-  const snap = await getDocs(
-    query(collection(db, 'device_data', deviceId, 'game_history'), orderBy('joinedAt', 'desc'))
-  );
-  return snap.docs.map(d => d.data() as HistoryEntry);
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'device_data', deviceId, 'game_history'), orderBy('joinedAt', 'desc'))
+    );
+    return snap.docs.map(d => d.data() as HistoryEntry);
+  } catch {
+    // Firestore 読み込み失敗時は localStorage のデータをフォールバック
+    return [...legacyEntries].sort(
+      (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+    );
+  }
 }
