@@ -567,6 +567,7 @@ export default function PlayClient() {
                   pointValue={selected.chipDef.point_value}
                   size={120}
                   showLabel={false}
+                  isCustom={!selected.chipDef.chip_template_id}
                 />
                 <div>
                   <p className="text-[#d4af37] font-bold text-xl">{locale === 'en' ? (chipNamesEn[selected.chipDef.name] ?? selected.chipDef.name) : selected.chipDef.name}</p>
@@ -905,6 +906,7 @@ export default function PlayClient() {
                           pointValue={def.point_value}
                           size={64}
                           flash={(flashCounts[cs.id] ?? 0) > 0}
+                          isCustom={!def.chip_template_id}
                         />
                       </DraggableChip>
                     );
@@ -960,6 +962,7 @@ export default function PlayClient() {
                             size={64}
                             flash={(flashCounts[cs.id] ?? 0) > 0}
                             onClick={isSpectator ? undefined : () => { if (!dragOccurredRef.current) setSelected({ chipState: cs, chipDef }); }}
+                            isCustom={!chipDef.chip_template_id}
                           />
                         </DraggableChip>
                       );
@@ -1105,6 +1108,7 @@ export default function PlayClient() {
               imageOffsetY={dragActiveChip.chipDef.image_offset_y ?? undefined}
               pointValue={dragActiveChip.chipDef.point_value}
               size={80}
+              isCustom={!dragActiveChip.chipDef.chip_template_id}
             />
           </div>
         )}

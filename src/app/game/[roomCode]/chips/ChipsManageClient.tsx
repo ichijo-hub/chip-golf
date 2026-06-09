@@ -50,6 +50,7 @@ export default function ChipsManageClient() {
   const [error, setError] = useState('');
   const [newChipName, setNewChipName] = useState('');
   const [newChipType, setNewChipType] = useState<ChipType>('positive');
+  const [newChipPoints, setNewChipPoints] = useState(1);
   const [adding, setAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -167,7 +168,7 @@ export default function ChipsManageClient() {
     setAdding(true);
     const chipDefRef = await addDoc(collection(db, 'games', roomCode, 'chip_definitions'), {
       id: '', game_id: roomCode, name: newChipName.trim(),
-      chip_type: newChipType, point_value: 1,
+      chip_type: newChipType, point_value: newChipPoints,
       chip_template_id: null, is_default: false, is_active: true,
       sort_order: chips.length, image_url: null,
     });
@@ -358,6 +359,16 @@ export default function ChipsManageClient() {
                 {t.chipsManage.typeNegative}
               </button>
             </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-green-400 text-sm shrink-0">{t.common.pointValue}</span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button type="button" onClick={() => setNewChipPoints(p => Math.max(1, p - 1))}
+                  className="w-7 h-7 rounded-full bg-[#145a32] border border-green-700 text-white font-bold text-lg flex items-center justify-center hover:border-[#d4af37] transition-colors">−</button>
+                <span className="text-white font-bold w-6 text-center">{newChipPoints}</span>
+                <button type="button" onClick={() => setNewChipPoints(p => Math.min(10, p + 1))}
+                  className="w-7 h-7 rounded-full bg-[#145a32] border border-green-700 text-white font-bold text-lg flex items-center justify-center hover:border-[#d4af37] transition-colors">＋</button>
+              </div>
+            </div>
             <div className="flex gap-2">
               <input type="text" value={newChipName} onChange={e => setNewChipName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && (e.preventDefault(), handleAddChip())}
@@ -386,7 +397,7 @@ function ChipRow({ chip, onEdit, onToggle, t }: { chip: ChipDefinition; onEdit: 
   return (
     <div className={`flex items-center gap-3 rounded-lg px-3 py-2 ${chip.is_active ? 'bg-[#145a32]' : 'bg-[#0b2e1c] opacity-60'}`}>
       <div onClick={onEdit} className="cursor-pointer">
-        <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} imageScale={chip.image_scale ?? undefined} imageOffsetY={chip.image_offset_y ?? undefined} size={64} />
+        <ChipBadge name={chip.name} chipType={chip.chip_type} imageUrl={chip.image_url} imageScale={chip.image_scale ?? undefined} imageOffsetY={chip.image_offset_y ?? undefined} size={64} isCustom={!chip.chip_template_id} />
       </div>
       <div className="flex-1 min-w-0">
         <p className={`font-medium truncate ${chip.is_active ? 'text-white' : 'text-green-700'}`}>{displayName}</p>

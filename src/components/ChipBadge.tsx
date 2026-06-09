@@ -16,6 +16,7 @@ interface ChipBadgeProps {
   showLabel?: boolean;
   onClick?: () => void;
   className?: string;
+  isCustom?: boolean; // 限定チップ（カジノ柄+名前表示）
 }
 
 export default function ChipBadge({
@@ -30,6 +31,7 @@ export default function ChipBadge({
   showLabel = true,
   onClick,
   className = '',
+  isCustom = false,
 }: ChipBadgeProps) {
   const { locale } = useT();
   const displayName = locale === 'en' ? (chipNamesEn[name] ?? name) : name;
@@ -75,6 +77,42 @@ export default function ChipBadge({
           pointerEvents: 'none',
         }}
       />
+      {/* 限定チップ: カジノ柄 + 名前テキスト */}
+      {isCustom && !imageUrl && (
+        <svg
+          viewBox="0 0 100 100"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        >
+          {/* 外周のカジノストライプ（8等分の交互セグメント） */}
+          <circle
+            cx="50" cy="50" r="44"
+            fill="none"
+            stroke="rgba(255,255,255,0.55)"
+            strokeWidth="7"
+            strokeDasharray="17.3 17.3"
+            strokeLinecap="butt"
+          />
+          {/* 内側リング */}
+          <circle
+            cx="50" cy="50" r="37"
+            fill="none"
+            stroke="rgba(255,255,255,0.2)"
+            strokeWidth="1"
+          />
+          {/* 名前（最初の4文字） */}
+          <text
+            x="50" y="57"
+            textAnchor="middle"
+            fill="white"
+            fontSize="22"
+            fontWeight="800"
+            fontFamily="system-ui, -apple-system, sans-serif"
+            style={{ letterSpacing: '-0.5px' }}
+          >
+            {name.slice(0, 4)}
+          </text>
+        </svg>
+      )}
     </Tag>
   );
 
