@@ -78,41 +78,35 @@ export default function ChipBadge({
         }}
       />
       {/* 限定チップ: カジノ柄 + 名前テキスト */}
-      {isCustom && !imageUrl && (
-        <svg
-          viewBox="0 0 100 100"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-        >
-          {/* 外周のカジノストライプ（8等分の交互セグメント） */}
-          <circle
-            cx="50" cy="50" r="44"
-            fill="none"
-            stroke="rgba(255,255,255,0.55)"
-            strokeWidth="7"
-            strokeDasharray="17.3 17.3"
-            strokeLinecap="butt"
-          />
-          {/* 内側リング */}
-          <circle
-            cx="50" cy="50" r="37"
-            fill="none"
-            stroke="rgba(255,255,255,0.2)"
-            strokeWidth="1"
-          />
-          {/* 名前（最初の4文字） */}
-          <text
-            x="50" y="57"
-            textAnchor="middle"
-            fill="white"
-            fontSize="22"
-            fontWeight="800"
-            fontFamily="system-ui, -apple-system, sans-serif"
-            style={{ letterSpacing: '-0.5px' }}
+      {isCustom && !imageUrl && (() => {
+        const display = name.slice(0, 10);
+        const line1 = display.slice(0, 5);
+        const line2 = display.slice(5);
+        const twoLine = line2.length > 0;
+        // 文字数に応じてフォントサイズを自動縮小
+        const fs = twoLine
+          ? (line1.length <= 3 ? 20 : 17)
+          : (line1.length <= 2 ? 28 : line1.length <= 3 ? 24 : line1.length <= 4 ? 20 : 17);
+        return (
+          <svg
+            viewBox="0 0 100 100"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
           >
-            {name.slice(0, 4)}
-          </text>
-        </svg>
-      )}
+            {/* 外周のカジノストライプ（8等分の交互セグメント） */}
+            <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="7" strokeDasharray="17.3 17.3" strokeLinecap="butt" />
+            {/* 内側リング */}
+            <circle cx="50" cy="50" r="37" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+            {twoLine ? (
+              <>
+                <text x="50" y={50 - fs * 0.1} textAnchor="middle" fill="white" fontSize={fs} fontWeight="800" fontFamily="system-ui, -apple-system, sans-serif" style={{ letterSpacing: '-0.5px' }}>{line1}</text>
+                <text x="50" y={50 + fs * 1.1} textAnchor="middle" fill="white" fontSize={fs} fontWeight="800" fontFamily="system-ui, -apple-system, sans-serif" style={{ letterSpacing: '-0.5px' }}>{line2}</text>
+              </>
+            ) : (
+              <text x="50" y="57" textAnchor="middle" fill="white" fontSize={fs} fontWeight="800" fontFamily="system-ui, -apple-system, sans-serif" style={{ letterSpacing: '-0.5px' }}>{line1}</text>
+            )}
+          </svg>
+        );
+      })()}
     </Tag>
   );
 
