@@ -239,7 +239,7 @@ export default function ResultClient() {
         {/* 観戦者コメント */}
         {players.filter(p => p.is_spectator && (p.comments ?? []).length > 0).length > 0 && (
           <div className="card-casino mb-6">
-            <p className="text-green-400 font-semibold text-lg mb-3">👀 観戦ログ</p>
+            <p className="text-green-400 font-semibold text-lg mb-3">👀 {t.result.audienceLog}</p>
             <div className="space-y-3">
               {players.filter(p => p.is_spectator).map(p => {
                 const comments = p.comments ?? [];

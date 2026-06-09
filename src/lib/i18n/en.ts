@@ -129,6 +129,7 @@ export const en: Translations = {
   result: {
     title: 'Results',
     positive: 'Positive: ',
+    audienceLog: 'Audience Log',
     negative: 'Negative: ',
     playAgain: 'Play Again',
     backToTop: 'Back to Top',

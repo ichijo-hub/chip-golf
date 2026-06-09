@@ -135,6 +135,7 @@ export const ja = {
     closeLog: '▲ 閉じる',
     noEvents: 'まだ操作がありません',
     holeLabel: 'H',
+    audienceLog: '観戦ログ',
   },
   chipsManage: {
     title: 'このゲームのチップ',
