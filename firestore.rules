@@ -47,7 +47,7 @@ service cloud.firestore {
         allow read: if true;
         allow create: if true;
         allow update: if true;
-        allow delete: if false; // チップ状態は削除しない（移動のみ）
+        allow delete: if true; // ゲーム削除時の一括削除のみ（通常移動はupdate）
       }
 
       // イベントログ: 追記専用（改ざん・削除不可）
@@ -55,7 +55,7 @@ service cloud.firestore {
         allow read: if true;
         allow create: if true;
         allow update: if false; // ログは不変
-        allow delete: if false; // ログは削除不可
+        allow delete: if true; // ゲーム削除時の一括削除のみ
       }
 
       // サイドゲームログ: 上書き保存・削除不可
