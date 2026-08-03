@@ -5,6 +5,7 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import UniversalLinkHandler from '@/components/UniversalLinkHandler';
 import RscFallback from '@/components/RscFallback';
 import ScrollReset from '@/components/ScrollReset';
+import OfflineIndicator from '@/components/OfflineIndicator';
 import { I18nProvider } from '@/lib/i18n';
 
 const geist = Geist({
@@ -53,6 +54,7 @@ export default function RootLayout({
           <RscFallback />
           <ScrollReset />
           <I18nProvider>
+            <OfflineIndicator />
             {children}
           </I18nProvider>
           <UniversalLinkHandler />

@@ -105,3 +105,60 @@ Firebase Auth（匿名認証で可）を入れる場合、`game_events` の `upd
 
 既存データとの互換のため、サイドゲーム行の判別は新フィールド `game_events.side_game` を優先し、
 無ければ `description` 先頭の絵文字（🏅/🏌️/📍）にフォールバックする（`src/lib/eventLabel.ts`）。
+
+---
+
+## 2026-08-03: Firestore のオフライン永続キャッシュを有効化した（複数タブ方式）
+
+### 決定
+
+`src/lib/firebase/client.ts` を `getFirestore` から
+`initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }, 'chip-golf')`
+に変更し、IndexedDB による永続キャッシュを有効にした。
+併せて `src/components/OfflineIndicator.tsx` を `layout.tsx` に置き、オフライン中は画面上部にバーを出す。
+
+### 理由
+
+ゴルフ場は電波が悪い。永続キャッシュが無いとキャッシュはメモリのみで、リロードした瞬間に
+画面が真っ白になる。永続キャッシュがあれば圏外でリロードしても直前のゲーム内容が出る。
+
+**`persistentSingleTabManager` を採用しない理由**: 単一タブ方式は IndexedDB のリースを1タブしか
+持てず、2枚目のタブで Firestore クライアントの起動そのものが失敗しうる。ゴルフ場で共有リンクを
+踏み直して2枚目が開くのは実際に起きる操作なので、リーダー選出で共有される複数タブ方式を選んだ。
+
+`initializeFirestore` は同じ App に対して2回呼ぶと throw するため、`getApps().length === 0` で
+App の二重初期化を避けているのと同じ理由（dev の HMR）で `try/catch` して `getFirestore` に
+フォールバックする `initDb()` を挟んでいる。
+
+### オフライン表示バーは #scroll-root に padding-top を入れる
+
+各画面のヘッダーはスクロールコンテナ `#scroll-root` 内の `sticky top-0 z-10`。バーを
+`fixed top-0` で出すだけだとヘッダーを覆い、「ゲーム終了」やメニューが押せなくなる。
+`OfflineIndicator` はバーの実測高さを `#scroll-root` の `padding-top` に流し込み、
+ヘッダーをバーの下へ押し出す（sticky はスクロールコンテナのパディングボックス基準で止まるため、
+スクロール中もヘッダーがバーの直下に貼り付く）。オンラインに戻ったら `padding-top` を戻す。
+
+バーを下端に置かなかったのは、ネイティブでは AdMob バナーが `BOTTOM_CENTER` を占有するため。
+
+### 検証で分かった既存の落とし穴（今回は直していない）
+
+**Firestore の書き込み Promise（`addDoc` / `updateDoc` / `setDoc`）はサーバーに到達して初めて
+解決する。** オフライン中はローカルキャッシュとリスナーには即座に反映されるが `await` は解決しない。
+実測で確認した影響は2種類ある。
+
+1. **`await` の後続処理がオフライン中は実行されない**
+   `PlayClient.doTransfer()` は `await updateDoc(chip_states)` → `addDoc(game_events)` の順。
+   オフラインでチップを移動すると持ち主とスコアは即座に反映されるが、**ログ行は追加されない**
+   （接続が戻って `updateDoc` が解決した時点で初めて追加される）。
+   接続が戻る前にタブを閉じると `chip_states` の書き込みは IndexedDB のミューテーションキューに
+   残って次回起動時に流れるが、**`addDoc` は呼ばれないままなのでログ行だけ永久に失われる**。
+   スコアの真実は `chip_states` なのでスコアは狂わないが、記録は欠ける。
+
+2. **スピナーが止まらない**
+   「`setSaving(true)` → `await` 書き込み → `setSaving(false)`」の形は回りっぱなしになる。該当箇所:
+   `LobbyClient.tsx:98` / `ResultClient.tsx:121` / `PlayClient.tsx:1333,1342` /
+   `ChipsManageClient.tsx:237` / `ChipsTemplateClient.tsx:98` / `OlympicModal.tsx:51` /
+   `SingleWinnerModal.tsx:45`
+
+どちらも永続キャッシュの有無に関わらない既存の挙動だが、キャッシュを入れて初めてオフライン運用が
+現実的になるため踏む頻度は上がる。UI の作り替えは別タスクとする。

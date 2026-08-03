@@ -33,6 +33,8 @@ export const en: Translations = {
     positive: 'Positive',
     negative: 'Negative',
     back: 'Back',
+    offline: 'Offline',
+    offlineDetail: 'Changes will sync once you are back online',
   },
   home: {
     activeGames: 'Active Games',

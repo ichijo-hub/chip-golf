@@ -31,6 +31,8 @@ export const ja = {
     positive: 'ポジティブ',
     negative: 'ネガティブ',
     back: '戻る',
+    offline: 'オフライン',
+    offlineDetail: '変更は接続が戻ったときに同期されます',
   },
   home: {
     activeGames: '開催中のゲーム',
