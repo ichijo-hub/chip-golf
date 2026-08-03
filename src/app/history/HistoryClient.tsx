@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { loadHistory } from '@/lib/gameHistory';
+import { deleteGameCompletely } from '@/lib/deleteGame';
 import { calculateScores } from '@/lib/scoring';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
 import Logo from '@/components/Logo';
@@ -17,6 +18,7 @@ interface GameSummary {
   players: Player[];
   netScores: { player: Player; netScore: number }[];
   joinedAt: string;
+  isHost: boolean;
 }
 
 
@@ -27,6 +29,9 @@ export default function HistoryClient() {
   const { t } = useT();
   const [summaries, setSummaries] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Game | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -57,10 +62,13 @@ export default function HistoryClient() {
               players,
               netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
               joinedAt: entry.joinedAt,
+              isHost: !!game.host_player_id
+                && localStorage.getItem(`player_${entry.roomCode}`) === game.host_player_id,
             };
 
+            // 同じルームを重複追加しない（StrictMode の二重実行対策。キー重複を防ぐ）
             setSummaries(prev =>
-              [...prev, summary].sort(
+              [...prev.filter(s => s.game.room_code !== summary.game.room_code), summary].sort(
                 (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
               )
             );
@@ -74,6 +82,22 @@ export default function HistoryClient() {
     }
     load();
   }, []);
+
+  async function handleDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await deleteGameCompletely(deleteTarget.room_code);
+      setSummaries(prev => prev.filter(s => s.game.room_code !== deleteTarget.room_code));
+      localStorage.removeItem(`player_${deleteTarget.room_code}`);
+      setDeleteTarget(null);
+    } catch {
+      setDeleteError(t.history.deleteError);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const statusLabel = (status: string) => ({
     lobby: t.history.waiting,
@@ -101,7 +125,7 @@ export default function HistoryClient() {
           </div>
         ) : (
           <div className="space-y-3">
-            {summaries.map(({ game, players, netScores, joinedAt }) => (
+            {summaries.map(({ game, players, netScores, joinedAt, isHost }) => (
               <div key={game.id} className="card-casino">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -119,19 +143,30 @@ export default function HistoryClient() {
                       　{t.history.participants.replace('{{count}}', String(players.length))}
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      localStorage.setItem('currentRoomCode', game.room_code);
-                      router.push(
-                        game.status === 'finished' ? `/game/__placeholder__/result?room=${game.room_code}` :
-                        game.status === 'playing'  ? `/game/__placeholder__/play?room=${game.room_code}` :
-                        `/game/__placeholder__/lobby?room=${game.room_code}`
-                      );
-                    }}
-                    className="text-sm text-green-400 hover:text-[#d4af37] transition-colors shrink-0"
-                  >
-                    {game.status === 'finished' ? t.history.viewResult : t.history.join} →
-                  </button>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('currentRoomCode', game.room_code);
+                        router.push(
+                          game.status === 'finished' ? `/game/__placeholder__/result?room=${game.room_code}` :
+                          game.status === 'playing'  ? `/game/__placeholder__/play?room=${game.room_code}` :
+                          `/game/__placeholder__/lobby?room=${game.room_code}`
+                        );
+                      }}
+                      className="text-sm text-green-400 hover:text-[#d4af37] transition-colors"
+                    >
+                      {game.status === 'finished' ? t.history.viewResult : t.history.join} →
+                    </button>
+                    {isHost && (
+                      <button
+                        onClick={() => { setDeleteTarget(game); setDeleteError(''); }}
+                        className="text-xs text-red-500 hover:text-red-400 transition-colors
+                                   px-2 py-1 -mr-2 -my-0.5"
+                      >
+                        {t.history.deleteGame}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {netScores.length > 0 && (
                   <div className="space-y-1">
@@ -151,6 +186,36 @@ export default function HistoryClient() {
           </div>
         )}
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="card-casino w-full max-w-sm">
+            <p className="text-[#d4af37] font-bold mb-2">⚠️ {t.history.confirmDelete}</p>
+            <p className="text-green-300 text-sm mb-4">
+              {t.history.confirmDeleteDetail.replace('{{roomCode}}', deleteTarget.room_code)}
+            </p>
+            {deleteError && <p className="text-red-400 text-sm mb-3">{deleteError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg bg-red-900 text-red-200 font-semibold
+                           border border-red-700 hover:bg-red-800 transition-colors disabled:opacity-50"
+              >
+                {deleting ? t.history.deleting : t.common.delete}
+              </button>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg border border-green-700 text-green-300
+                           hover:border-green-500 transition-colors disabled:opacity-50"
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

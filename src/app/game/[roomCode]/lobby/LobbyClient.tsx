@@ -6,10 +6,11 @@ import { useRoomCode } from '@/hooks/useRoomCode';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc,
-  onSnapshot, query, orderBy, writeBatch,
+  onSnapshot, query, orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
+import { deleteGameCompletely } from '@/lib/deleteGame';
 import { Game, Player, HoleMode } from '@/types';
 
 const HOLE_MODES: HoleMode[] = ['9h', '18h_out', '18h_in'];
@@ -140,16 +141,7 @@ export default function LobbyClient() {
 
   async function handleDeleteGame() {
     if (!confirm(t.lobby.confirmDelete)) return;
-    const batch = writeBatch(db);
-    const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap] = await Promise.all([
-      getDocs(collection(db, 'games', roomCode, 'players')),
-      getDocs(collection(db, 'games', roomCode, 'chip_definitions')),
-      getDocs(collection(db, 'games', roomCode, 'chip_states')),
-      getDocs(collection(db, 'games', roomCode, 'game_events')),
-    ]);
-    [...playersSnap.docs, ...chipDefsSnap.docs, ...chipStatesSnap.docs, ...eventsSnap.docs].forEach(d => batch.delete(d.ref));
-    batch.delete(doc(db, 'games', roomCode));
-    await batch.commit();
+    await deleteGameCompletely(roomCode);
     router.push('/');
   }
 

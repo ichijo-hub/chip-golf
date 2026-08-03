@@ -217,6 +217,11 @@ export const ja = {
     finished: '終了',
     playing: '進行中',
     waiting: '待機中',
+    deleteGame: '削除',
+    confirmDelete: 'このゲームを削除しますか？',
+    confirmDeleteDetail: '「{{roomCode}}」のスコア・ログが参加者全員分まとめて削除されます。この操作は取り消せません。',
+    deleting: '削除中...',
+    deleteError: '削除に失敗しました。通信状況を確認して、もう一度お試しください。',
   },
   dracon: {
     enableToggle: 'ドラコンを記録する',

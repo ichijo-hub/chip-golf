@@ -18,6 +18,11 @@ export async function saveToHistory(roomCode: string, joinedAt?: string): Promis
   await setDoc(ref, { roomCode, joinedAt: joinedAt ?? new Date().toISOString() });
 }
 
+export async function removeFromHistory(roomCode: string): Promise<void> {
+  const deviceId = await getDeviceId();
+  await deleteDoc(doc(db, 'device_data', deviceId, 'game_history', roomCode));
+}
+
 // 旧UUID（Device plugin未リンク時のフォールバック）→ 現在のdeviceIdへFirestore内でデータ移行
 async function migrateOldUuidData(deviceId: string): Promise<void> {
   const oldUUID = localStorage.getItem(LEGACY_DEVICE_ID_KEY);
