@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRoomCode } from '@/hooks/useRoomCode';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
   query, orderBy, setDoc,
@@ -14,6 +15,8 @@ import { saveChipToLibrary } from '@/lib/chipLibrary';
 import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
+
+const LIBRARY_CACHE_KEY = 'chip_golf_library_cache';
 
 interface LibraryChip {
   name: string;
@@ -42,15 +45,8 @@ interface EditingChip {
 }
 
 export default function ChipsManageClient() {
-  const params = useParams();
   const router = useRouter();
-  const [roomCode] = useState(() => {
-    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
-    const fromSearch = new URLSearchParams(window.location.search).get('room');
-    const fromParams = params?.roomCode as string | undefined;
-    const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
-    return (code || '').toUpperCase();
-  });
+  const roomCode = useRoomCode();
 
   const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -73,24 +69,28 @@ export default function ChipsManageClient() {
 
   const loadData = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
-    const savedId = localStorage.getItem(`player_${roomCode}`);
-    const [gameSnap, chipsSnap] = await Promise.all([
-      getDoc(doc(db, 'games', roomCode)),
-      getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
-    ]);
-    if (!gameSnap.exists()) { setLoading(false); return; }
-    const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
-    setGame(g);
-    const currentChips = chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-    setChips(currentChips);
-    if (savedId) {
-      const playerSnap = await getDoc(doc(db, 'games', roomCode, 'players', savedId));
-      if (playerSnap.exists()) {
-        setIsSpectator(!!(playerSnap.data() as { is_spectator?: boolean }).is_spectator);
+    try {
+      const savedId = localStorage.getItem(`player_${roomCode}`);
+      const [gameSnap, chipsSnap] = await Promise.all([
+        getDoc(doc(db, 'games', roomCode)),
+        getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
+      ]);
+      if (!gameSnap.exists()) { setLoading(false); return; }
+      const g = { id: gameSnap.id, ...gameSnap.data() } as Game;
+      setGame(g);
+      const currentChips = chipsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+      setChips(currentChips);
+      if (savedId) {
+        const playerSnap = await getDoc(doc(db, 'games', roomCode, 'players', savedId));
+        if (playerSnap.exists()) {
+          setIsSpectator(!!(playerSnap.data() as { is_spectator?: boolean }).is_spectator);
+        }
       }
+      setLoading(false);
+      loadLibrary(currentChips);
+    } catch {
+      setLoading(false);
     }
-    setLoading(false);
-    loadLibrary(currentChips);
   }, [roomCode]);
 
   useEffect(() => {
@@ -105,17 +105,31 @@ export default function ChipsManageClient() {
     }
   }, [loading, game, isSpectator, roomCode, router]);
 
+  function applyLibraryData(all: LibraryChip[], currentChips: ChipDefinition[]) {
+    const currentKeys = new Set(
+      currentChips.filter(c => !c.chip_template_id).map(c => `${c.name}__${c.chip_type}`)
+    );
+    setLibraryChips(all.filter(c => !c.deleted && !currentKeys.has(`${c.name}__${c.chip_type}`)));
+    setDeletedChips(all.filter(c => c.deleted));
+  }
+
   async function loadLibrary(currentChips: ChipDefinition[]) {
-    setLibraryLoading(true);
+    // キャッシュがあれば即時表示（ローディングスピナーなし）
+    const cached = localStorage.getItem(LIBRARY_CACHE_KEY);
+    if (cached) {
+      try {
+        applyLibraryData(JSON.parse(cached) as LibraryChip[], currentChips);
+      } catch { /* キャッシュ破損は無視 */ }
+    } else {
+      setLibraryLoading(true);
+    }
+
     try {
       const deviceId = await getDeviceId();
       const snap = await getDocs(collection(db, 'device_data', deviceId, 'chip_library'));
-      const currentKeys = new Set(
-        currentChips.filter(c => !c.chip_template_id).map(c => `${c.name}__${c.chip_type}`)
-      );
       const all = snap.docs.map(d => d.data() as LibraryChip);
-      setLibraryChips(all.filter(c => !c.deleted && !currentKeys.has(`${c.name}__${c.chip_type}`)));
-      setDeletedChips(all.filter(c => c.deleted));
+      localStorage.setItem(LIBRARY_CACHE_KEY, JSON.stringify(all));
+      applyLibraryData(all, currentChips);
     } catch {
       // ライブラリ読み込み失敗は無視
     } finally {
@@ -300,6 +314,11 @@ export default function ChipsManageClient() {
     loadData();
   }
 
+  function handleBack() {
+    localStorage.setItem('currentRoomCode', roomCode);
+    router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`);
+  }
+
   if (loading) {
     return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
   }
@@ -309,6 +328,17 @@ export default function ChipsManageClient() {
 
   return (
     <>
+      {/* Fixed header - z-[60] to stay above modals (z-50) */}
+      <div className="fixed top-0 left-0 right-0 z-[60] bg-[#0d2b1a] border-b border-green-900"
+           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.25rem)' }}>
+        <div className="max-w-md mx-auto px-4 py-3 flex items-center gap-3">
+          <button onClick={handleBack} className="text-green-400 hover:text-[#d4af37] transition-colors shrink-0">
+            {game?.status === 'playing' ? t.chipsManage.backToGame : t.chipsManage.backToLobby}
+          </button>
+          <h1 className="text-xl font-bold text-[#d4af37] truncate">{t.chipsManage.title}</h1>
+        </div>
+      </div>
+
       {libraryModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setLibraryModal(null)}>
           <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -496,14 +526,8 @@ export default function ChipsManageClient() {
         </div>
       )}
 
-      <main className="min-h-screen p-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
+      <main className="min-h-screen p-4 pb-24" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 4rem)' }}>
         <div className="max-w-md mx-auto">
-          <div className="flex items-center gap-3 mb-6 pt-4">
-            <button onClick={() => { localStorage.setItem('currentRoomCode', roomCode); router.push(game?.status === 'playing' ? `/game/__placeholder__/play?room=${roomCode}` : `/game/__placeholder__/lobby?room=${roomCode}`); }} className="text-green-400 hover:text-[#d4af37] transition-colors">
-              {game?.status === 'playing' ? t.chipsManage.backToGame : t.chipsManage.backToLobby}
-            </button>
-            <h1 className="text-2xl font-bold text-[#d4af37]">{t.chipsManage.title}</h1>
-          </div>
           <p className="text-green-600 text-sm mb-4">{t.chipsManage.note}</p>
 
           <div className="card-casino mb-4">
@@ -525,7 +549,7 @@ export default function ChipsManageClient() {
           {(libraryLoading || libraryChips.length > 0) && (
             <div className="card-casino mb-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[#d4af37] font-semibold">📦 {t.chipsManage.pastChips}</p>
+                <p className="text-[#d4af37] font-semibold">{t.chipsManage.pastChips}</p>
                 <button
                   onClick={handleAddAllFromLibrary}
                   className="text-xs px-3 py-1 rounded bg-[#145a32] border border-green-700 text-green-300 hover:border-[#d4af37] hover:text-[#d4af37] transition-colors"

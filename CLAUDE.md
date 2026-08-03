@@ -413,3 +413,45 @@ npx supabase gen types typescript --project-id YOUR_PROJECT_ID > src/lib/supabas
 - ゲーム画面の上部バー
 - favicon: チップアイコン単体（グリーン背景）
 ```
+
+---
+
+## 16. 絶対制約（変更前に必ず読むこと）
+
+> 経緯・理由は `docs/DECISIONS.md` を参照。
+
+### 実装の実体は Firebase Firestore（上記2〜13章の Supabase 記述は初期設計時のもので現状と異なる）
+
+データは `games/{roomCode}` 配下のサブコレクション（`players` / `chip_definitions` / `chip_states` /
+`game_events` / `olympic_logs` / `dracon_logs` / `niapin_logs`）。同期は `onSnapshot`。
+
+### スコアの真実は `chip_states.holder_player_id`。`game_events` は記録にすぎない
+
+- `src/lib/scoring.ts` は `chip_states` のみからスコアを計算する。**`game_events` からスコアを計算しない**
+- ログ行を書き換えてもスコアは自動では変わらない
+- **`chip_states` を同期してよいのは、そのチップの「最新の」イベント行を修正・削除したときだけ。**
+  過去行の修正で `chip_states` を触ってはいけない（その後の移動履歴を無視して持ち主を壊すため）
+- サイドゲームの精算の真実は `olympic_logs` / `dracon_logs` / `niapin_logs`
+
+### ログ編集はプレイ画面のみ・ホストのみ
+
+- 結果画面のログは閲覧専用。終了ゲームを直すときはホストが「ゲームを再開して修正する」で
+  `status` を `playing` に戻してからプレイ画面で行う
+- 修正した行には `edited_at` を必ず記録する（UI に ✎ を出す）
+
+### `firestore.rules` を変更したら必ずデプロイする
+
+ルールはコードと一緒にデプロイされない。変更したら以下を実行すること。
+実行し忘れると本番で `Missing or insufficient permissions.` になる。
+
+```bash
+npx firebase deploy --only firestore:rules
+```
+
+### `src/lib/i18n/en.ts` は `DeepStringify<typeof ja>` で型が縛られている
+
+`ja.ts` にキーを足したら `en.ts` にも同じキーを足すこと。片方だけだとビルドが落ちる。
+
+### サイドゲームのログ行は addDoc する前に同ホール・同種目の既存行を削除する
+
+しないと同じホールを再入力するたびにログ行が増え、精算と食い違って見える。

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 
 const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false });
-import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { loadHistory } from '@/lib/gameHistory';
 import { Game } from '@/types';
@@ -31,37 +31,39 @@ export default function HomeClient() {
 
   useEffect(() => {
     async function loadActiveGames() {
-      const history = await loadHistory();
-      if (history.length === 0) return;
+      try {
+        const history = await loadHistory();
+        if (history.length === 0) return;
 
-      // ゲームドキュメントを並列フェッチ
-      const gameSnaps = await Promise.all(
-        history.map(entry => getDoc(doc(db, 'games', entry.roomCode)))
-      );
+        const gameSnaps = await Promise.all(
+          history.map(entry => getDoc(doc(db, 'games', entry.roomCode)))
+        );
 
-      const activeEntries = gameSnaps
-        .map((snap, i) => ({ snap, roomCode: history[i].roomCode }))
-        .filter(({ snap }) => snap.exists())
-        .map(({ snap, roomCode }) => ({
-          game: { id: snap.id, ...snap.data() } as Game,
-          roomCode,
-        }))
-        .filter(({ game }) => game.status !== 'finished');
+        const activeEntries = gameSnaps
+          .map((snap, i) => ({ snap, roomCode: history[i].roomCode }))
+          .filter(({ snap }) => snap.exists())
+          .map(({ snap, roomCode }) => ({
+            game: { id: snap.id, ...snap.data() } as Game,
+            roomCode,
+          }))
+          .filter(({ game }) => game.status !== 'finished');
 
-      // ホスト名を並列フェッチ
-      const results = await Promise.all(
-        activeEntries.map(async ({ game, roomCode }) => {
-          const playerId = localStorage.getItem(`player_${roomCode}`);
-          let hostName = '';
-          if (game.host_player_id) {
-            const hostSnap = await getDoc(doc(db, 'games', roomCode, 'players', game.host_player_id));
-            if (hostSnap.exists()) hostName = (hostSnap.data() as { name: string }).name;
-          }
-          return { game, isHost: playerId === game.host_player_id, hostName };
-        })
-      );
+        const results = await Promise.all(
+          activeEntries.map(async ({ game, roomCode }) => {
+            const playerId = localStorage.getItem(`player_${roomCode}`);
+            let hostName = '';
+            if (game.host_player_id) {
+              const hostSnap = await getDoc(doc(db, 'games', roomCode, 'players', game.host_player_id));
+              if (hostSnap.exists()) hostName = (hostSnap.data() as { name: string }).name;
+            }
+            return { game, isHost: playerId === game.host_player_id, hostName };
+          })
+        );
 
-      setActiveGames(results);
+        setActiveGames(results);
+      } catch {
+        // オフライン時は無視（画面は通常通り表示）
+      }
     }
     loadActiveGames();
   }, []);

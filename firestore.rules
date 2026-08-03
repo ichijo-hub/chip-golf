@@ -50,12 +50,14 @@ service cloud.firestore {
         allow delete: if true; // ゲーム削除時の一括削除のみ（通常移動はupdate）
       }
 
-      // イベントログ: 追記専用（改ざん・削除不可）
+      // イベントログ: ホストによる記録の修正を許可（UI側でホスト限定）
+      // ※ Auth未導入で他コレクションも if true のため、ここだけ不変にしても実効防御にならない。
+      //    経緯は docs/DECISIONS.md を参照。
       match /game_events/{eventId} {
         allow read: if true;
         allow create: if true;
-        allow update: if false; // ログは不変
-        allow delete: if true; // ゲーム削除時の一括削除のみ
+        allow update: if true; // ログ行の修正（ホストのみ・クライアント制御）
+        allow delete: if true; // ログ行の削除・ゲーム削除時の一括削除
       }
 
       // サイドゲームログ: 上書き保存・削除不可

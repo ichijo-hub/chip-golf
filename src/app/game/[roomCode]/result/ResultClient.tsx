@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRoomCode } from '@/hooks/useRoomCode';
 import {
-  doc, getDoc, collection, getDocs, query, orderBy,
+  doc, getDoc, collection, getDocs, query, orderBy, onSnapshot, updateDoc,
 } from 'firebase/firestore';
 import { calcOlympicTotals, OlympicPlayerTotal } from '@/lib/olympic';
 import { calcSingleWinnerTotals, SingleWinnerPlayerTotal } from '@/lib/singleWinner';
@@ -16,7 +17,7 @@ import ChipBadge from '@/components/ChipBadge';
 import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 import AdBanner from '@/components/AdBanner';
-import { chipNamesEn } from '@/lib/i18n/chipNames';
+import { formatEventLabel } from '@/lib/eventLabel';
 
 // Standard competition ranking (1224): counts how many have strictly higher value
 function computeRanks(values: number[]): number[] {
@@ -31,16 +32,9 @@ function rankBadge(rank: number): string {
 }
 
 export default function ResultClient() {
-  const params = useParams();
   const router = useRouter();
+  const roomCode = useRoomCode();
   const { t, locale } = useT();
-  const [roomCode] = useState(() => {
-    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
-    const fromSearch = new URLSearchParams(window.location.search).get('room');
-    const fromParams = params?.roomCode as string | undefined;
-    const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
-    return (code || '').toUpperCase();
-  });
 
   const [scores, setScores] = useState<PlayerScore[]>([]);
   const [events, setEvents] = useState<GameEvent[]>([]);
@@ -52,47 +46,91 @@ export default function ResultClient() {
   const [draconTotals, setDraconTotals] = useState<SingleWinnerPlayerTotal[]>([]);
   const [niapinTotals, setNiapinTotals] = useState<SingleWinnerPlayerTotal[]>([]);
   const [sideGames, setSideGames] = useState({ olympic: false, dracon: false, niapin: false });
+  const [hostPlayerId, setHostPlayerId] = useState<string | null>(null);
+  const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [reopenConfirmOpen, setReopenConfirmOpen] = useState(false);
+  const [reopening, setReopening] = useState(false);
+
+  useEffect(() => {
+    if (!roomCode) return;
+    setMyPlayerId(localStorage.getItem(`player_${roomCode}`));
+  }, [roomCode]);
+
+  // ホストが再オープンしたら、結果画面を見ている全員をゲーム画面へ戻す
+  useEffect(() => {
+    if (!roomCode) return;
+    const unsub = onSnapshot(doc(db, 'games', roomCode), (snap) => {
+      if (!snap.exists()) return;
+      const updated = snap.data() as Game;
+      setHostPlayerId(updated.host_player_id ?? null);
+      if (updated.status === 'playing') {
+        localStorage.setItem('currentRoomCode', roomCode);
+        router.push(`/game/__placeholder__/play?room=${roomCode}`);
+      }
+    });
+    return () => unsub();
+  }, [roomCode, router]);
 
   useEffect(() => {
     if (!roomCode) { router.push('/'); return; }
     async function load() {
-      const gameSnap = await getDoc(doc(db, 'games', roomCode));
-      if (!gameSnap.exists()) { setLoading(false); return; }
-      const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+      try {
+        const gameSnap = await getDoc(doc(db, 'games', roomCode));
+        if (!gameSnap.exists()) { setLoading(false); return; }
+        const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
 
-      const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap, olympicSnap, draconSnap, niapinSnap] = await Promise.all([
-        getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
-        getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
-        getDocs(collection(db, 'games', roomCode, 'chip_states')),
-        getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'))),
-        getDocs(collection(db, 'games', roomCode, 'olympic_logs')),
-        getDocs(collection(db, 'games', roomCode, 'dracon_logs')),
-        getDocs(collection(db, 'games', roomCode, 'niapin_logs')),
-      ]);
+        const [playersSnap, chipDefsSnap, chipStatesSnap, eventsSnap, olympicSnap, draconSnap, niapinSnap] = await Promise.all([
+          getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
+          getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
+          getDocs(collection(db, 'games', roomCode, 'chip_states')),
+          getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'))),
+          getDocs(collection(db, 'games', roomCode, 'olympic_logs')),
+          getDocs(collection(db, 'games', roomCode, 'dracon_logs')),
+          getDocs(collection(db, 'games', roomCode, 'niapin_logs')),
+        ]);
 
-      const loadedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-      const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-      const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
-      const loadedEvents = eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent));
+        const loadedPlayers = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+        const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+        const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
+        const loadedEvents = eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent));
 
-      const olympicLogs = olympicSnap.docs.map(d => ({ ...d.data() } as OlympicHoleLog));
-      const draconLogs = draconSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
-      const niapinLogs = niapinSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
+        const olympicLogs = olympicSnap.docs.map(d => ({ ...d.data() } as OlympicHoleLog));
+        const draconLogs = draconSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
+        const niapinLogs = niapinSnap.docs.map(d => ({ ...d.data() } as SingleWinnerHoleLog));
 
-      setPlayers(loadedPlayers);
-      setChipDefs(loadedChipDefs);
-      setEvents(loadedEvents);
-      setScores(calculateScores(loadedPlayers, chipStates, loadedChipDefs));
-      setSideGames({ olympic: !!game.olympic_enabled, dracon: !!game.dracon_enabled, niapin: !!game.niapin_enabled });
-      setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
-      setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
-      setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
-      saveToHistory(roomCode, game.updated_at).catch(() => {});
-      saveGameChipsToLibrary(loadedChipDefs);
-      setLoading(false);
+        setPlayers(loadedPlayers);
+        setChipDefs(loadedChipDefs);
+        setEvents(loadedEvents);
+        setScores(calculateScores(loadedPlayers, chipStates, loadedChipDefs));
+        setSideGames({ olympic: !!game.olympic_enabled, dracon: !!game.dracon_enabled, niapin: !!game.niapin_enabled });
+        setOlympicTotals(calcOlympicTotals(loadedPlayers, olympicLogs));
+        setDraconTotals(calcSingleWinnerTotals(loadedPlayers, draconLogs));
+        setNiapinTotals(calcSingleWinnerTotals(loadedPlayers, niapinLogs));
+        saveToHistory(roomCode, game.updated_at).catch(() => {});
+        saveGameChipsToLibrary(loadedChipDefs);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, [roomCode]);
+
+  const isHost = !!myPlayerId && myPlayerId === hostPlayerId;
+
+  async function reopenGame() {
+    setReopening(true);
+    try {
+      await updateDoc(doc(db, 'games', roomCode), {
+        status: 'playing',
+        updated_at: new Date().toISOString(),
+      });
+      localStorage.setItem('currentRoomCode', roomCode);
+      router.push(`/game/__placeholder__/play?room=${roomCode}`);
+    } catch {
+      setReopening(false);
+      setReopenConfirmOpen(false);
+    }
+  }
 
   if (loading) {
     return <main className="min-h-screen flex items-center justify-center"><p className="text-green-400">{t.common.loading}</p></main>;
@@ -278,33 +316,30 @@ export default function ResultClient() {
               {events.length === 0 ? (
                 <p className="text-green-700 text-base text-center py-2">{t.result.noEvents}</p>
               ) : (
-                events.map((ev) => {
-                  const chipDef = chipDefs.find(d => d.id === ev.chip_definition_id);
-                  const chipName = chipDef
-                    ? (locale === 'en' ? (chipNamesEn[chipDef.name] ?? chipDef.name) : chipDef.name)
-                    : (ev.description?.split(':')[0] ?? '');
-                  const fromName = ev.from_player_id
-                    ? (players.find(p => p.id === ev.from_player_id)?.name ?? t.play.field)
-                    : t.play.field;
-                  const toName = ev.to_player_id
-                    ? (players.find(p => p.id === ev.to_player_id)?.name ?? t.play.field)
-                    : t.play.field;
-                  const holePrefix = ev.hole_number != null ? `${t.result.holeLabel}${ev.hole_number} ` : '';
-                  const label = chipDef
-                    ? `${holePrefix}${chipName}: ${fromName} → ${toName}`
-                    : (ev.description ?? '');
-                  return (
-                    <div key={ev.id} className="text-sm text-green-300 bg-[#145a32] rounded px-3 py-1.5">
-                      {label}
-                    </div>
-                  );
-                })
+                events.map((ev) => (
+                  <div key={ev.id} className="text-sm text-green-300 bg-[#145a32] rounded px-3 py-1.5 flex items-center gap-2">
+                    <span className="flex-1">
+                      {formatEventLabel(ev, chipDefs, players, locale, t.play.field, t.result.holeLabel)}
+                    </span>
+                    {ev.edited_at && (
+                      <span className="text-green-600 text-xs shrink-0">✎ {t.result.edited}</span>
+                    )}
+                  </div>
+                ))
               )}
             </div>
           )}
         </div>
 
         <div className="space-y-3">
+          {isHost && (
+            <button
+              onClick={() => setReopenConfirmOpen(true)}
+              className="w-full py-3 rounded-lg border border-yellow-600 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/60 transition-colors font-semibold"
+            >
+              {t.result.reopenGame}
+            </button>
+          )}
           <button onClick={() => router.push('/game/new')} className="btn-gold w-full py-4 text-lg">
             {t.result.playAgain}
           </button>
@@ -313,6 +348,29 @@ export default function ResultClient() {
           </button>
         </div>
       </div>
+
+      {/* ゲーム再開の確認 */}
+      {reopenConfirmOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="card-casino w-full max-w-sm">
+            <p className="text-[#d4af37] font-bold mb-2">🔓 {t.result.reopenConfirm}</p>
+            <p className="text-green-300 text-sm mb-4">{t.result.reopenConfirmDetail}</p>
+            <div className="flex gap-2">
+              <button onClick={reopenGame} disabled={reopening} className="btn-gold flex-1 py-2 disabled:opacity-50">
+                {reopening ? t.result.reopening : t.play.confirm}
+              </button>
+              <button
+                onClick={() => setReopenConfirmOpen(false)}
+                disabled={reopening}
+                className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors disabled:opacity-50"
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AdBanner />
     </main>
   );

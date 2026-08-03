@@ -37,7 +37,6 @@ export default function ChipBadge({
   const fullName = locale === 'en' ? (chipNamesEn[name] ?? name) : name;
   const displayName = isCustom && fullName.length > 6 ? fullName.slice(0, 6) + '…' : fullName;
   const isPositive = chipType === 'positive';
-  const fontSize = size <= 44 ? '8px' : size <= 56 ? '10px' : '11px';
   const Tag = (onClick ? 'button' : 'div') as React.ElementType;
 
   const chip = (

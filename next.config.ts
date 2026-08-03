@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   ...(isStaticExport && { output: 'export' }),
   trailingSlash: true,
   images: { unoptimized: true },
-  allowedDevOrigins: ['192.168.188.124'],
+  allowedDevOrigins: ['192.168.188.124', '127.0.0.1'],
   // headers() は静的エクスポート時には機能しないため SSR モードのみ追加
   ...(!isStaticExport && {
     async headers() {

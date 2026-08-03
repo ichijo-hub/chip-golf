@@ -84,6 +84,8 @@ export interface OlympicHoleLog {
   updated_at: string;
 }
 
+export type SideGameType = 'olympic' | 'dracon' | 'niapin';
+
 export interface GameEvent {
   id: string;
   game_id: string;
@@ -93,5 +95,7 @@ export interface GameEvent {
   to_player_id: string | null;
   hole_number: number | null;
   description: string | null;
+  side_game?: SideGameType | null; // サイドゲーム行の判別（旧データは description の絵文字で判定）
+  edited_at?: string | null;       // ホストが記録を修正した日時
   created_at: string;
 }

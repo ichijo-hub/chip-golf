@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRoomCode } from '@/hooks/useRoomCode';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  doc, getDoc, collection, getDocs, addDoc, updateDoc, deleteDoc,
+  doc, getDoc, collection, getDocs, addDoc, updateDoc,
   onSnapshot, query, orderBy, writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
@@ -23,16 +24,8 @@ import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 
 export default function LobbyClient() {
-  const params = useParams();
   const router = useRouter();
-  // ?room= が優先（__placeholder__ ナビゲーション）、なければ params から取得（Vercel SSR 直アクセス）
-  const [roomCode] = useState(() => {
-    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
-    const fromSearch = new URLSearchParams(window.location.search).get('room');
-    const fromParams = params?.roomCode as string | undefined;
-    const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
-    return (code || '').toUpperCase();
-  });
+  const roomCode = useRoomCode();
 
   const { t } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -47,22 +40,27 @@ export default function LobbyClient() {
 
   const loadGame = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
-    const gameSnap = await getDoc(doc(db, 'games', roomCode));
-    if (!gameSnap.exists()) {
+    try {
+      const gameSnap = await getDoc(doc(db, 'games', roomCode));
+      if (!gameSnap.exists()) {
+        setError(t.lobby.gameNotFound);
+        setLoading(false);
+        return;
+      }
+      const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
+      setGame(typedGame);
+
+      const playersSnap = await getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order')));
+      setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
+      setLoading(false);
+
+      const savedId = localStorage.getItem(`player_${roomCode}`);
+      if (typedGame.status === 'playing' && savedId) { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
+      else if (typedGame.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
+    } catch {
       setError(t.lobby.gameNotFound);
       setLoading(false);
-      return;
     }
-    const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
-    setGame(typedGame);
-
-    const playersSnap = await getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order')));
-    setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
-    setLoading(false);
-
-    const savedId = localStorage.getItem(`player_${roomCode}`);
-    if (typedGame.status === 'playing' && savedId) { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/play?room=${roomCode}`); }
-    else if (typedGame.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
   }, [roomCode, router]);
 
   useEffect(() => {

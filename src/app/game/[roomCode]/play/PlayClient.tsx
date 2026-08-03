@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useRoomCode } from '@/hooks/useRoomCode';
 import {
-  doc, getDoc, collection, getDocs, addDoc, updateDoc, setDoc,
+  doc, getDoc, collection, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
   onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import {
@@ -25,6 +26,7 @@ import { useT } from '@/lib/i18n';
 import LangToggle from '@/components/LangToggle';
 import { saveGameChipsToLibrary } from '@/lib/chipLibrary';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
+import { formatEventLabel, isChipTransferEvent, sideGameTypeOf } from '@/lib/eventLabel';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -32,15 +34,8 @@ interface ChipSelection {
 }
 
 export default function PlayClient() {
-  const params = useParams();
   const router = useRouter();
-  const [roomCode] = useState(() => {
-    const fromStorage = typeof localStorage !== 'undefined' ? localStorage.getItem('currentRoomCode') : null;
-    const fromSearch = new URLSearchParams(window.location.search).get('room');
-    const fromParams = params?.roomCode as string | undefined;
-    const code = fromSearch || fromStorage || (fromParams && fromParams !== '__placeholder__' ? fromParams : '');
-    return (code || '').toUpperCase();
-  });
+  const roomCode = useRoomCode();
 
   const { t, locale } = useT();
   const [game, setGame] = useState<Game | null>(null);
@@ -67,6 +62,10 @@ export default function PlayClient() {
   const [copiedRoom, setCopiedRoom] = useState(false);
   const [spectatorConfirmOpen, setSpectatorConfirmOpen] = useState(false);
   const [playerConfirmOpen, setPlayerConfirmOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<GameEvent | null>(null);
+  const [logEditError, setLogEditError] = useState('');
+  // ログ行から過去ホールのサイドゲームを開くとき、その対象ホール（null = 現在ホール）
+  const [sideGameEditHole, setSideGameEditHole] = useState<number | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -75,33 +74,37 @@ export default function PlayClient() {
 
   const loadData = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
-    const gameSnap = await getDoc(doc(db, 'games', roomCode));
-    if (!gameSnap.exists()) {
-      setError(t.play.gameNotFound);
+    try {
+      const gameSnap = await getDoc(doc(db, 'games', roomCode));
+      if (!gameSnap.exists()) {
+        setError(t.play.gameNotFound);
+        setLoading(false);
+        return;
+      }
+      const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
+      setGame(typedGame);
+
+      if (typedGame.status === 'finished') {
+        localStorage.setItem('currentRoomCode', roomCode);
+        router.push(`/game/__placeholder__/result?room=${roomCode}`);
+        return;
+      }
+
+      const [playersSnap, chipDefsSnap, eventsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
+        getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
+        getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(500))),
+      ]);
+
+      setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
+      const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+      setChipDefs(loadedChipDefs.filter(c => c.is_active !== false));
+      setEvents(eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
+      saveGameChipsToLibrary(loadedChipDefs);
       setLoading(false);
-      return;
+    } catch {
+      setLoading(false);
     }
-    const typedGame = { id: gameSnap.id, ...gameSnap.data() } as Game;
-    setGame(typedGame);
-
-    if (typedGame.status === 'finished') {
-      localStorage.setItem('currentRoomCode', roomCode);
-      router.push(`/game/__placeholder__/result?room=${roomCode}`);
-      return;
-    }
-
-    const [playersSnap, chipDefsSnap, eventsSnap] = await Promise.all([
-      getDocs(query(collection(db, 'games', roomCode, 'players'), orderBy('display_order'))),
-      getDocs(query(collection(db, 'games', roomCode, 'chip_definitions'), orderBy('sort_order'))),
-      getDocs(query(collection(db, 'games', roomCode, 'game_events'), orderBy('created_at', 'desc'), limit(500))),
-    ]);
-
-    setPlayers(playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player)));
-    const loadedChipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-    setChipDefs(loadedChipDefs.filter(c => c.is_active !== false));
-    setEvents(eventsSnap.docs.map(d => ({ ...d.data(), id: d.id } as GameEvent)));
-    saveGameChipsToLibrary(loadedChipDefs);
-    setLoading(false);
   }, [roomCode, router]);
 
   useEffect(() => {
@@ -250,12 +253,22 @@ export default function PlayClient() {
 
   // ---- olympic ----
 
+  /** 同じホール・同じ種目の古いログ行を消す（再入力時にログが重複しないように） */
+  async function clearSideGameEvents(type: 'olympic' | 'dracon' | 'niapin', holeNumber: number) {
+    const stale = events.filter(ev => ev.hole_number === holeNumber && sideGameTypeOf(ev) === type);
+    await Promise.all(
+      stale.map(ev => deleteDoc(doc(db, 'games', roomCode, 'game_events', ev.id)))
+    );
+  }
+
   async function saveOlympicLog(holeNumber: number, entries: Record<string, OlympicEntry>) {
     await setDoc(doc(db, 'games', roomCode, 'olympic_logs', String(holeNumber)), {
       hole_number: holeNumber,
       entries,
       updated_at: new Date().toISOString(),
     });
+
+    await clearSideGameEvents('olympic', holeNumber);
 
     const RANK_LABELS = locale === 'en'
       ? ['🥇Gold', '🥈Silver', '🥉Bronze', '🫀Iron']
@@ -277,12 +290,14 @@ export default function PlayClient() {
             to_player_id: playerId,
             hole_number: holeNumber,
             description: `🏅 H${holeNumber} ${olympicLabel}: ${player.name} ${rankLabel}(${pts}pt)`,
+            side_game: 'olympic',
             created_at: new Date().toISOString(),
           });
         })
     );
 
     setShowOlympicModal(false);
+    setSideGameEditHole(null);
   }
 
   async function saveSingleWinnerLog(
@@ -299,6 +314,8 @@ export default function PlayClient() {
       carryover,
       updated_at: new Date().toISOString(),
     });
+
+    await clearSideGameEvents(type, holeNumber);
 
     const emoji = type === 'dracon' ? '🏌️' : '📍';
     const label = locale === 'en'
@@ -324,6 +341,7 @@ export default function PlayClient() {
           to_player_id: winnerId,
           hole_number: holeNumber,
           description: `${emoji} H${holeNumber} ${label}: ${player.name}(${effectivePts}pt${extrasLabel})`,
+          side_game: type,
           created_at: new Date().toISOString(),
         });
       }
@@ -336,12 +354,14 @@ export default function PlayClient() {
         to_player_id: null,
         hole_number: holeNumber,
         description: `${emoji} H${holeNumber} ${label}: ${noWinnerLabel}`,
+        side_game: type,
         created_at: new Date().toISOString(),
       });
     }
 
     if (type === 'dracon') setShowDraconModal(false);
     else setShowNiapinModal(false);
+    setSideGameEditHole(null);
   }
 
   // ---- hole management ----
@@ -461,6 +481,85 @@ export default function PlayClient() {
     });
   }
 
+  // ---- イベントログの修正（ホストのみ） ----
+
+  /** events は created_at desc なので、そのチップの最初のヒット = 最新の移動記録 */
+  function isLatestEventForChip(ev: GameEvent): boolean {
+    if (!ev.chip_state_id) return false;
+    const latest = events.find(e => e.chip_state_id === ev.chip_state_id && e.chip_definition_id !== null);
+    return latest?.id === ev.id;
+  }
+
+  function openLogEditor(ev: GameEvent) {
+    if (!isHost) return;
+    const sideGame = sideGameTypeOf(ev);
+    if (sideGame) {
+      // サイドゲームの記録は該当ホールの入力モーダルで直す（精算の元データがそちらにあるため）
+      if (ev.hole_number != null) setSideGameEditHole(ev.hole_number);
+      if (sideGame === 'olympic') setShowOlympicModal(true);
+      else if (sideGame === 'dracon') setShowDraconModal(true);
+      else setShowNiapinModal(true);
+      return;
+    }
+    if (isChipTransferEvent(ev)) setEditingEvent(ev);
+  }
+
+  async function saveEventEdit(
+    ev: GameEvent,
+    fromPlayerId: string | null,
+    toPlayerId: string | null,
+    holeNumber: number | null,
+  ) {
+    const now = new Date().toISOString();
+    const syncState = isLatestEventForChip(ev);
+    const chipDef = chipDefs.find(d => d.id === ev.chip_definition_id);
+    const fromName = fromPlayerId ? (players.find(p => p.id === fromPlayerId)?.name ?? '場') : '場';
+    const toName = toPlayerId ? (players.find(p => p.id === toPlayerId)?.name ?? '場') : '場';
+
+    setLogEditError('');
+    try {
+      await updateDoc(doc(db, 'games', roomCode, 'game_events', ev.id), {
+        from_player_id: fromPlayerId,
+        to_player_id: toPlayerId,
+        hole_number: holeNumber,
+        description: chipDef ? `${chipDef.name}: ${fromName} → ${toName}` : (ev.description ?? null),
+        edited_at: now,
+      });
+
+      // 最新の記録を直したときだけ、実際のチップの持ち主（＝スコア）も合わせる
+      if (syncState && ev.chip_state_id) {
+        await updateDoc(doc(db, 'games', roomCode, 'chip_states', ev.chip_state_id), {
+          holder_player_id: toPlayerId,
+          updated_at: now,
+        });
+      }
+      setEditingEvent(null);
+    } catch (err: unknown) {
+      setLogEditError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function deleteEvent(ev: GameEvent) {
+    const now = new Date().toISOString();
+    const syncState = isLatestEventForChip(ev);
+
+    setLogEditError('');
+    try {
+      await deleteDoc(doc(db, 'games', roomCode, 'game_events', ev.id));
+
+      // 最新の記録を消した場合はその移動を取り消す＝チップを移動元に戻す
+      if (syncState && ev.chip_state_id) {
+        await updateDoc(doc(db, 'games', roomCode, 'chip_states', ev.chip_state_id), {
+          holder_player_id: ev.from_player_id,
+          updated_at: now,
+        });
+      }
+      setEditingEvent(null);
+    } catch (err: unknown) {
+      setLogEditError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   function copyRoomCodeToClipboard() {
     navigator.clipboard.writeText(roomCode);
     setCopiedRoom(true);
@@ -492,11 +591,16 @@ export default function PlayClient() {
   const isOlympicEnabled = !!game?.olympic_enabled;
   const isDraconEnabled = !!game?.dracon_enabled;
   const isNiapinEnabled = !!game?.niapin_enabled;
-  const anySideGameEnabled = isOlympicEnabled || isDraconEnabled || isNiapinEnabled;
   const currentOlympicLog = olympicLogs.find(l => l.hole_number === currentHole) ?? null;
   const isCurrentHoleLogged = !!currentOlympicLog;
   const currentDraconLog = draconLogs.find(l => l.hole_number === currentHole) ?? null;
   const currentNiapinLog = niapinLogs.find(l => l.hole_number === currentHole) ?? null;
+
+  // サイドゲームのモーダルが対象にするホール（ログ行から開いた場合はその行のホール）
+  const sideGameHole = sideGameEditHole ?? currentHole;
+  const olympicModalLog = olympicLogs.find(l => l.hole_number === sideGameHole) ?? null;
+  const draconModalLog = draconLogs.find(l => l.hole_number === sideGameHole) ?? null;
+  const niapinModalLog = niapinLogs.find(l => l.hole_number === sideGameHole) ?? null;
 
   const fieldChips = chipStates
     .filter(cs => cs.holder_player_id === null)
@@ -521,11 +625,11 @@ export default function PlayClient() {
       {showOlympicModal && (
         <OlympicModal
           players={players}
-          holeNumber={currentHole}
+          holeNumber={sideGameHole}
           isHoleEditable={!hasHoles}
-          existingLog={currentOlympicLog}
+          existingLog={olympicModalLog}
           onSave={saveOlympicLog}
-          onClose={() => setShowOlympicModal(false)}
+          onClose={() => { setShowOlympicModal(false); setSideGameEditHole(null); }}
         />
       )}
 
@@ -534,11 +638,11 @@ export default function PlayClient() {
         <SingleWinnerModal
           type="dracon"
           players={players}
-          holeNumber={currentHole}
+          holeNumber={sideGameHole}
           isHoleEditable={!hasHoles}
-          existingLog={currentDraconLog}
+          existingLog={draconModalLog}
           onSave={(hole, winner, doubleUp, carryover) => saveSingleWinnerLog('dracon', hole, winner, doubleUp, carryover)}
-          onClose={() => setShowDraconModal(false)}
+          onClose={() => { setShowDraconModal(false); setSideGameEditHole(null); }}
         />
       )}
 
@@ -547,11 +651,28 @@ export default function PlayClient() {
         <SingleWinnerModal
           type="niapin"
           players={players}
-          holeNumber={currentHole}
+          holeNumber={sideGameHole}
           isHoleEditable={!hasHoles}
-          existingLog={currentNiapinLog}
+          existingLog={niapinModalLog}
           onSave={(hole, winner, doubleUp, carryover) => saveSingleWinnerLog('niapin', hole, winner, doubleUp, carryover)}
-          onClose={() => setShowNiapinModal(false)}
+          onClose={() => { setShowNiapinModal(false); setSideGameEditHole(null); }}
+        />
+      )}
+
+      {/* ログ行の修正モーダル（ホストのみ） */}
+      {editingEvent && (
+        <EventEditModal
+          event={editingEvent}
+          chipDef={chipDefs.find(d => d.id === editingEvent.chip_definition_id) ?? null}
+          players={players}
+          isLatest={isLatestEventForChip(editingEvent)}
+          totalHoles={hasHoles ? (game?.total_holes ?? 18) : 0}
+          locale={locale}
+          t={t}
+          error={logEditError}
+          onSave={saveEventEdit}
+          onDelete={deleteEvent}
+          onClose={() => { setEditingEvent(null); setLogEditError(''); }}
         />
       )}
 
@@ -980,8 +1101,6 @@ export default function PlayClient() {
             players={players}
             myPlayerId={myPlayerId}
             isSpectator={isSpectator}
-            isHost={isHost}
-            onToggleSpectator={toggleSpectator}
             onSubmitComment={submitComment}
             t={t}
           />
@@ -1066,33 +1185,43 @@ export default function PlayClient() {
               <span className="text-green-500 text-base">{showLog ? t.play.closeLog : t.play.openLog}</span>
             </button>
             {showLog && (
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                {events.length === 0 ? (
-                  <p className="text-green-700 text-lg text-center py-2">{t.play.noEvents}</p>
-                ) : (
-                  events.map((ev) => {
-                    const chipDef = chipDefs.find(d => d.id === ev.chip_definition_id);
-                    const chipName = chipDef
-                      ? (locale === 'en' ? (chipNamesEn[chipDef.name] ?? chipDef.name) : chipDef.name)
-                      : (ev.description?.split(':')[0] ?? '');
-                    const fromName = ev.from_player_id
-                      ? (players.find(p => p.id === ev.from_player_id)?.name ?? t.play.field)
-                      : t.play.field;
-                    const toName = ev.to_player_id
-                      ? (players.find(p => p.id === ev.to_player_id)?.name ?? t.play.field)
-                      : t.play.field;
-                    const holePrefix = ev.hole_number != null ? `${t.play.holeLabel}${ev.hole_number} ` : '';
-                    const label = chipDef
-                      ? `${holePrefix}${chipName}: ${fromName} → ${toName}`
-                      : (ev.description ?? '');
-                    return (
-                      <div key={ev.id} className="text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5">
-                        {label}
-                      </div>
-                    );
-                  })
+              <>
+                {isHost && events.length > 0 && (
+                  <p className="text-green-600 text-xs mt-2">{t.play.editLogHint}</p>
                 )}
-              </div>
+                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                  {events.length === 0 ? (
+                    <p className="text-green-700 text-lg text-center py-2">{t.play.noEvents}</p>
+                  ) : (
+                    events.map((ev) => {
+                      const label = formatEventLabel(ev, chipDefs, players, locale, t.play.field, t.play.holeLabel);
+                      const editable = isHost && (!!sideGameTypeOf(ev) || isChipTransferEvent(ev));
+                      const body = (
+                        <>
+                          <span className="flex-1 text-left">{label}</span>
+                          {ev.edited_at && (
+                            <span className="text-green-600 text-xs shrink-0">{t.play.editLogEdited}</span>
+                          )}
+                          {editable && <span className="text-[#d4af37] text-sm shrink-0">✎</span>}
+                        </>
+                      );
+                      const className = 'w-full text-base text-green-300 bg-[#145a32] rounded px-3 py-1.5 flex items-center gap-2';
+                      return editable ? (
+                        <button
+                          key={ev.id}
+                          type="button"
+                          onClick={() => openLogEditor(ev)}
+                          className={`${className} hover:bg-green-800 transition-colors`}
+                        >
+                          {body}
+                        </button>
+                      ) : (
+                        <div key={ev.id} className={className}>{body}</div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1177,6 +1306,172 @@ function DraggableChip({
   );
 }
 
+function EventEditModal({
+  event, chipDef, players, isLatest, totalHoles, locale, t, error, onSave, onDelete, onClose,
+}: {
+  event: GameEvent;
+  chipDef: ChipDefinition | null;
+  players: Player[];
+  isLatest: boolean;
+  totalHoles: number; // 0 = ホール設定なし
+  locale: 'ja' | 'en';
+  t: ReturnType<typeof useT>['t'];
+  error: string;
+  onSave: (ev: GameEvent, from: string | null, to: string | null, hole: number | null) => Promise<void>;
+  onDelete: (ev: GameEvent) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [fromId, setFromId] = useState<string | null>(event.from_player_id);
+  const [toId, setToId] = useState<string | null>(event.to_player_id);
+  const [hole, setHole] = useState<number | null>(event.hole_number);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const selectClass = 'w-full bg-[#0d3320] border border-green-800 rounded-lg px-3 py-2 text-white text-base focus:outline-none focus:border-[#d4af37]';
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(event, fromId, toId, hole);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true);
+    try {
+      await onDelete(event);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="card-casino w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            {chipDef && (
+              <ChipBadge
+                name={chipDef.name}
+                chipType={chipDef.chip_type}
+                imageUrl={chipDef.image_url}
+                imageScale={chipDef.image_scale ?? undefined}
+                imageOffsetY={chipDef.image_offset_y ?? undefined}
+                pointValue={chipDef.point_value}
+                size={64}
+                showLabel={false}
+                isCustom={!chipDef.chip_template_id}
+              />
+            )}
+            <div>
+              <p className="text-[#d4af37] font-bold text-lg">{t.play.editLogTitle}</p>
+              {chipDef && (
+                <p className="text-green-300 text-sm">
+                  {locale === 'en' ? (chipNamesEn[chipDef.name] ?? chipDef.name) : chipDef.name}
+                </p>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-green-400 text-3xl leading-none">✕</button>
+        </div>
+
+        <p className={`text-sm rounded-lg px-3 py-2 mb-4 ${isLatest ? 'bg-yellow-900/40 text-yellow-300' : 'bg-[#145a32] text-green-400'}`}>
+          {isLatest ? t.play.editLogSyncNote : t.play.editLogRecordOnlyNote}
+        </p>
+
+        <div className="space-y-3">
+          {totalHoles > 0 && (
+            <div>
+              <label className="text-green-400 text-sm block mb-1">{t.play.editLogHole}</label>
+              <select
+                className={selectClass}
+                value={hole ?? ''}
+                onChange={e => setHole(e.target.value === '' ? null : Number(e.target.value))}
+              >
+                <option value="">{t.play.editLogNoHole}</option>
+                {Array.from({ length: totalHoles }, (_, i) => i + 1).map(h => (
+                  <option key={h} value={h}>{t.play.holeLabel}{h}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-green-400 text-sm block mb-1">{t.play.editLogFrom}</label>
+            <select className={selectClass} value={fromId ?? ''} onChange={e => setFromId(e.target.value || null)}>
+              <option value="">{t.play.field}</option>
+              {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-green-400 text-sm block mb-1">{t.play.editLogTo}</label>
+            <select className={selectClass} value={toId ?? ''} onChange={e => setToId(e.target.value || null)}>
+              <option value="">{t.play.field}</option>
+              {players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {error && (
+          <p className="mt-4 text-sm rounded-lg px-3 py-2 bg-red-900/40 text-red-300 break-words">
+            {t.play.editLogError.replace('{{error}}', error)}
+          </p>
+        )}
+
+        <div className="flex gap-2 mt-5">
+          <button onClick={handleSave} disabled={saving} className="btn-gold flex-1 py-2 disabled:opacity-50">
+            {saving ? t.common.saving : t.common.save}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors disabled:opacity-50"
+          >
+            {t.common.cancel}
+          </button>
+        </div>
+
+        <div className="border-t border-green-800 mt-4 pt-3">
+          {confirmDelete ? (
+            <div>
+              <p className="text-red-300 text-sm mb-2">
+                {t.play.editLogDeleteConfirm}
+                {isLatest && ` ${t.play.editLogDeleteSyncNote}`}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDelete}
+                  disabled={saving}
+                  className="flex-1 py-2 rounded-lg bg-red-900 hover:bg-red-800 text-red-100 border border-red-700 transition-colors disabled:opacity-50"
+                >
+                  {t.common.delete}
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={saving}
+                  className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors disabled:opacity-50"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="w-full text-red-400 hover:text-red-300 text-sm py-1 transition-colors"
+            >
+              🗑 {t.play.editLogDelete}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DroppableZone({
   id, children, active,
 }: {
@@ -1196,13 +1491,11 @@ function DroppableZone({
 }
 
 function SpectatorSection({
-  players, myPlayerId, isSpectator, isHost, onToggleSpectator, onSubmitComment, t,
+  players, myPlayerId, isSpectator, onSubmitComment, t,
 }: {
   players: Player[];
   myPlayerId: string | null;
   isSpectator: boolean;
-  isHost: boolean;
-  onToggleSpectator: () => Promise<void>;
   onSubmitComment: (comment: string) => Promise<void>;
   t: ReturnType<typeof useT>['t'];
 }) {
