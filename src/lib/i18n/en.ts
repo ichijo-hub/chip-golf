@@ -221,6 +221,11 @@ export const en: Translations = {
     finished: 'Finished',
     playing: 'Playing',
     waiting: 'Waiting',
+    deleteGame: 'Delete',
+    confirmDelete: 'Delete this game?',
+    confirmDeleteDetail: 'All scores and logs for "{{roomCode}}" will be deleted for every player. This cannot be undone.',
+    deleting: 'Deleting...',
+    deleteError: 'Failed to delete. Check your connection and try again.',
   },
   dracon: {
     enableToggle: 'Track Longest Drive',

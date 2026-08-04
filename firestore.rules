@@ -60,26 +60,28 @@ service cloud.firestore {
         allow delete: if true; // ログ行の削除・ゲーム削除時の一括削除
       }
 
-      // サイドゲームログ: 上書き保存・削除不可
+      // サイドゲームログ: ホール番号をドキュメントIDにした上書き保存。
+      // 通常フローで delete は使わないが、ゲーム削除の一括削除で必要（
+      // 1つでも delete: if false が残るとバッチ全体が失敗する）。
       match /olympic_logs/{docId} {
         allow read: if true;
         allow create: if true;
         allow update: if true;
-        allow delete: if false;
+        allow delete: if true; // ゲーム削除時の一括削除のみ
       }
 
       match /dracon_logs/{docId} {
         allow read: if true;
         allow create: if true;
         allow update: if true;
-        allow delete: if false;
+        allow delete: if true; // ゲーム削除時の一括削除のみ
       }
 
       match /niapin_logs/{docId} {
         allow read: if true;
         allow create: if true;
         allow update: if true;
-        allow delete: if false;
+        allow delete: if true; // ゲーム削除時の一括削除のみ
       }
     }
   }
