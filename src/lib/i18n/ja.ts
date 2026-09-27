@@ -138,7 +138,7 @@ export const ja = {
     editLogEdited: '修正済み',
     editLogError: '保存できませんでした: {{error}}',
     dragToggle: 'チップのドラッグ操作',
-    dragToggleHint: 'OFFにするとチップの上からでもスクロールでき、タップで移動先を選びます',
+    dragToggleHint: 'OFFにするとチップの移動方法がタップのみになります',
     holeBadgeAria: '現在のホール（タップでホール操作へ）',
     holeCheckTitle: 'ホールを進め忘れていませんか？',
     holeCheckBody: 'このチップはH{{hole}}で既に移動しています。',

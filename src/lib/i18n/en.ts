@@ -140,7 +140,7 @@ export const en: Translations = {
     editLogEdited: 'edited',
     editLogError: 'Could not save: {{error}}',
     dragToggle: 'Drag chips',
-    dragToggleHint: 'When OFF, you can scroll over chips and move them by tapping',
+    dragToggleHint: 'When OFF, chips can only be moved by tapping',
     holeBadgeAria: 'Current hole (tap to go to hole controls)',
     holeCheckTitle: 'Forgot to advance the hole?',
     holeCheckBody: 'This chip has already moved on H{{hole}}.',
