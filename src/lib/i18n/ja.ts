@@ -137,6 +137,13 @@ export const ja = {
     editLogDeleteSyncNote: 'チップは移動元に戻ります。',
     editLogEdited: '修正済み',
     editLogError: '保存できませんでした: {{error}}',
+    dragToggle: 'チップのドラッグ操作',
+    dragToggleHint: 'OFFにするとチップの上からでもスクロールでき、タップで移動先を選びます',
+    holeBadgeAria: '現在のホール（タップでホール操作へ）',
+    holeCheckTitle: 'ホールを進め忘れていませんか？',
+    holeCheckBody: 'このチップはH{{hole}}で既に移動しています。',
+    holeCheckAdvance: 'H{{next}}に進めて記録',
+    holeCheckKeep: 'H{{hole}}のまま記録',
   },
   result: {
     title: '結果発表',

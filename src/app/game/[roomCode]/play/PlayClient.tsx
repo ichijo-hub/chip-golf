@@ -33,6 +33,17 @@ interface ChipSelection {
   chipDef: ChipDefinition;
 }
 
+interface PendingTransfer extends ChipSelection {
+  toPlayerId: string | null;
+  nextHole: number;
+}
+
+/** タッチでドラッグが始まるまでの長押し時間。これより短いタッチはタップ扱い */
+const LONG_PRESS_MS = 250;
+/** 同じチップの直前の移動からこの時間以内なら置き直し（誤操作の修正）とみなし、ホール送りの確認を出さない */
+const HOLE_CHECK_MIN_INTERVAL_MS = 60_000;
+const DRAG_ENABLED_KEY = 'chipDragEnabled';
+
 export default function PlayClient() {
   const router = useRouter();
   const roomCode = useRoomCode();
@@ -66,11 +77,31 @@ export default function PlayClient() {
   const [logEditError, setLogEditError] = useState('');
   // ログ行から過去ホールのサイドゲームを開くとき、その対象ホール（null = 現在ホール）
   const [sideGameEditHole, setSideGameEditHole] = useState<number | null>(null);
+  // ドラッグ操作のON/OFF（端末ごとの好み。ゲームでは共有しない）
+  const [dragEnabled, setDragEnabled] = useState(true);
+  // ホール送り忘れの確認待ちになっているチップ移動
+  const [pendingTransfer, setPendingTransfer] = useState<PendingTransfer | null>(null);
+  const holeNavRef = useRef<HTMLDivElement | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
+    // 即ドラッグにするとチップの上から始めたスクロールがドラッグになるため、長押しで開始する
+    useSensor(TouchSensor, { activationConstraint: { delay: LONG_PRESS_MS, tolerance: 5 } }),
   );
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DRAG_ENABLED_KEY) === '0') setDragEnabled(false);
+    } catch { /* ストレージが使えない環境ではデフォルト（ON）のまま */ }
+  }, []);
+
+  function toggleDragEnabled() {
+    const next = !dragEnabled;
+    setDragEnabled(next);
+    try {
+      localStorage.setItem(DRAG_ENABLED_KEY, next ? '1' : '0');
+    } catch { /* 保存できなくてもこのセッション中は有効 */ }
+  }
 
   const loadData = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
@@ -184,7 +215,10 @@ export default function PlayClient() {
 
   // ---- transfer logic ----
 
-  async function doTransfer(chipState: ChipState, chipDef: ChipDefinition, toPlayerId: string | null) {
+  /**
+   * holeOverride: 記録するホール番号。ホールを進めた直後は game state がまだ古いため明示的に渡す
+   */
+  async function doTransfer(chipState: ChipState, chipDef: ChipDefinition, toPlayerId: string | null, holeOverride?: number) {
     const me = players.find(p => p.id === myPlayerId);
     if (me?.is_spectator) return;
     const fromPlayerId = chipState.holder_player_id;
@@ -208,23 +242,63 @@ export default function PlayClient() {
       chip_definition_id: chipDef.id,
       from_player_id: fromPlayerId,
       to_player_id: toPlayerId,
-      hole_number: hasHoles ? (game?.current_hole ?? null) : null,
+      hole_number: hasHoles ? (holeOverride ?? game?.current_hole ?? null) : null,
       description,
       created_at: new Date().toISOString(),
     });
+  }
+
+  /**
+   * 1ホールで同じチップが2回動くことはまずないので、現ホールで既に動いたチップを
+   * 再び動かそうとしたら「ホールを進め忘れている」可能性が高い。次のホール番号を返す（確認不要なら null）
+   */
+  function holeAdvanceCandidate(chipState: ChipState): number | null {
+    if (!game) return null;
+    const next = getNextHole(game);
+    if (next === null) return null;
+    // events は created_at desc なので最初のヒットがこのチップの最新の移動
+    const last = events.find(e => e.chip_state_id === chipState.id && isChipTransferEvent(e));
+    if (!last || last.hole_number !== game.current_hole) return null;
+    const elapsedMs = new Date().getTime() - new Date(last.created_at).getTime();
+    if (elapsedMs < HOLE_CHECK_MIN_INTERVAL_MS) return null;
+    return next;
+  }
+
+  /** チップ移動の入口（タップ・ドラッグ共通）。必要ならホール送りの確認を挟む */
+  async function requestTransfer(chipState: ChipState, chipDef: ChipDefinition, toPlayerId: string | null) {
+    const nextHole = holeAdvanceCandidate(chipState);
+    if (nextHole !== null) {
+      setPendingTransfer({ chipState, chipDef, toPlayerId, nextHole });
+      return;
+    }
+    await doTransfer(chipState, chipDef, toPlayerId);
+  }
+
+  async function resolvePendingTransfer(advance: boolean) {
+    const p = pendingTransfer;
+    if (!p) return;
+    setPendingTransfer(null);
+    if (advance) {
+      await updateDoc(doc(db, 'games', roomCode), { current_hole: p.nextHole });
+      await doTransfer(p.chipState, p.chipDef, p.toPlayerId, p.nextHole);
+    } else {
+      await doTransfer(p.chipState, p.chipDef, p.toPlayerId);
+    }
   }
 
   async function transferChip(toPlayerId: string | null) {
     if (!selected || !game) return;
     const snap = { ...selected };
     setSelected(null);
-    await doTransfer(snap.chipState, snap.chipDef, toPlayerId);
+    await requestTransfer(snap.chipState, snap.chipDef, toPlayerId);
   }
 
   // ---- drag & drop handlers ----
 
   function handleDragStart(event: DragStartEvent) {
     setDragActiveChip(event.active.data.current as ChipSelection);
+    // 長押しでドラッグが始まったことを伝える（対応端末のみ。iOS Safari は非対応で無視される）
+    navigator.vibrate?.(15);
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -239,7 +313,7 @@ export default function PlayClient() {
     const toPlayerId = event.over.id === 'field' ? null : String(event.over.id);
     if (toPlayerId === drag.chipState.holder_player_id) return; // same zone → no-op
 
-    await doTransfer(drag.chipState, drag.chipDef, toPlayerId);
+    await requestTransfer(drag.chipState, drag.chipDef, toPlayerId);
   }
 
   // ---- hole mode change (host only) ----
@@ -739,6 +813,38 @@ export default function PlayClient() {
         </div>
       )}
 
+      {/* ホール送り忘れの確認 */}
+      {pendingTransfer && game && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setPendingTransfer(null)}>
+          <div className="card-casino w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <p className="text-[#d4af37] font-bold text-xl mb-2">{t.play.holeCheckTitle}</p>
+            <p className="text-green-300 text-base mb-4">
+              {t.play.holeCheckBody.replace('{{hole}}', String(game.current_hole))}
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={() => resolvePendingTransfer(true)}
+                className="w-full py-3 rounded-xl font-bold text-lg bg-[#d4af37] hover:bg-yellow-500 active:bg-yellow-600 text-[#1a1a1a] border border-yellow-400"
+              >
+                {t.play.holeCheckAdvance.replace('{{next}}', String(pendingTransfer.nextHole))}
+              </button>
+              <button
+                onClick={() => resolvePendingTransfer(false)}
+                className="w-full py-3 rounded-xl font-bold text-lg bg-green-800 hover:bg-green-700 active:bg-green-600 text-white border border-green-600"
+              >
+                {t.play.holeCheckKeep.replace('{{hole}}', String(game.current_hole))}
+              </button>
+              <button
+                onClick={() => setPendingTransfer(null)}
+                className="w-full py-2 text-green-400 text-base"
+              >
+                {t.common.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="min-h-screen pb-24">
         <div className="sticky top-0 bg-[#145a32] border-b border-green-800 px-3 z-10" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: '8px' }}>
           <div className="max-w-md mx-auto flex items-center justify-between">
@@ -769,6 +875,18 @@ export default function PlayClient() {
               </button>
             </div>
           </div>
+          {/* 現在ホール（スクロールしても常に見えるように。タップでホール操作へ） */}
+          {hasHoles && game && (
+            <button
+              onClick={() => holeNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              aria-label={t.play.holeBadgeAria}
+              className="max-w-md mx-auto mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#0d3d22] border border-green-700 py-0.5"
+            >
+              <span className="text-[#d4af37] text-xs font-semibold tracking-wider">HOLE</span>
+              <span className="text-white font-bold text-base leading-none">{game.current_hole}</span>
+              <span className="text-green-500 text-xs">/ {game.total_holes}</span>
+            </button>
+          )}
         </div>
 
         {/* ハンバーガーメニュー */}
@@ -795,6 +913,27 @@ export default function PlayClient() {
                 <span className="text-green-400 text-sm">Language</span>
                 <LangToggle />
               </div>
+
+              {/* ドラッグ操作 ON/OFF（観戦者はチップを動かさないので出さない） */}
+              {!isSpectator && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-green-400 text-sm">{t.play.dragToggle}</span>
+                    <button
+                      role="switch"
+                      aria-checked={dragEnabled}
+                      aria-label={t.play.dragToggle}
+                      onClick={toggleDragEnabled}
+                      className={`relative w-11 h-6 rounded-full border transition-colors shrink-0
+                        ${dragEnabled ? 'bg-[#d4af37] border-yellow-400' : 'bg-green-900 border-green-700'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white transition-transform
+                        ${dragEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </div>
+                  <p className="text-green-600 text-xs mt-1">{t.play.dragToggleHint}</p>
+                </div>
+              )}
 
               {/* 観戦者 ↔ プレイヤー切替（ホスト以外のみ） */}
               {!isHost && (
@@ -902,7 +1041,7 @@ export default function PlayClient() {
 
           {/* ホールナビゲーション */}
           {hasHoles && game && (
-            <div className="card-casino !p-4">
+            <div ref={holeNavRef} className="card-casino !p-4 scroll-mt-20">
               <div className="flex items-center justify-between gap-3 mb-3">
                 <button
                   onClick={retreatHole}
@@ -1018,7 +1157,8 @@ export default function PlayClient() {
                         id={cs.id}
                         data={{ chipState: cs, chipDef: def }}
                         onTap={isSpectator ? undefined : () => setSelected({ chipState: cs, chipDef: def })}
-                        disabled={isSpectator}
+                        disabled={isSpectator || !dragEnabled}
+                        suppressTapRef={dragOccurredRef}
                       >
                         <ChipBadge
                           name={def.name}
@@ -1073,7 +1213,8 @@ export default function PlayClient() {
                           id={cs.id}
                           data={{ chipState: cs, chipDef }}
                           onTap={isSpectator ? undefined : () => setSelected({ chipState: cs, chipDef })}
-                          disabled={isSpectator}
+                          disabled={isSpectator || !dragEnabled}
+                          suppressTapRef={dragOccurredRef}
                         >
                           <ChipBadge
                             name={chipDef.name}
@@ -1251,19 +1392,23 @@ export default function PlayClient() {
 // ---- inner components ----
 
 function DraggableChip({
-  id, data, children, onTap, disabled,
+  id, data, children, onTap, disabled, suppressTapRef,
 }: {
   id: string;
   data: ChipSelection;
   children: React.ReactNode;
   onTap?: () => void;
   disabled?: boolean;
+  /** ドラッグ直後に true になる。直後の click でモーダルが開かないようにする */
+  suppressTapRef?: React.RefObject<boolean>;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data, disabled });
   const nodeRef = useRef<HTMLDivElement | null>(null);
   const tapStart = useRef({ time: 0, x: 0, y: 0 });
   const onTapRef = useRef(onTap);
   onTapRef.current = onTap; // 毎レンダーで最新を維持、effectは再実行しない
+  const disabledRef = useRef(disabled);
+  useEffect(() => { disabledRef.current = disabled; }, [disabled]);
 
   useEffect(() => {
     const el = nodeRef.current;
@@ -1276,7 +1421,9 @@ function DraggableChip({
       const { time, x, y } = tapStart.current;
       const t = e.changedTouches[0];
       const dist = Math.hypot(t.clientX - x, t.clientY - y);
-      if (Date.now() - time < 400 && dist < 8) onTapRef.current();
+      // ドラッグ有効時は長押し＝ドラッグ開始なので、それより短いタッチだけをタップとする
+      const maxTapMs = disabledRef.current ? 400 : LONG_PRESS_MS;
+      if (Date.now() - time < maxTapMs && dist < 8) onTapRef.current();
     };
     el.addEventListener('touchstart', handleTouchStart, { passive: true });
     el.addEventListener('touchend', handleTouchEnd, { passive: true });
@@ -1298,8 +1445,8 @@ function DraggableChip({
       {...listeners}
       draggable={false}
       onContextMenu={(e) => e.preventDefault()}
-      onClick={() => onTapRef.current?.()}
-      style={{ opacity: isDragging ? 0.25 : 1, cursor: disabled ? 'default' : isDragging ? 'grabbing' : 'grab', touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
+      onClick={() => { if (!suppressTapRef?.current) onTapRef.current?.(); }}
+      style={{ opacity: isDragging ? 0.25 : 1, cursor: disabled ? 'default' : isDragging ? 'grabbing' : 'grab', touchAction: 'manipulation', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' } as React.CSSProperties}
     >
       {children}
     </div>

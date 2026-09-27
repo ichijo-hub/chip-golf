@@ -139,6 +139,13 @@ export const en: Translations = {
     editLogDeleteSyncNote: 'The chip will be returned to the sender.',
     editLogEdited: 'edited',
     editLogError: 'Could not save: {{error}}',
+    dragToggle: 'Drag chips',
+    dragToggleHint: 'When OFF, you can scroll over chips and move them by tapping',
+    holeBadgeAria: 'Current hole (tap to go to hole controls)',
+    holeCheckTitle: 'Forgot to advance the hole?',
+    holeCheckBody: 'This chip has already moved on H{{hole}}.',
+    holeCheckAdvance: 'Advance to H{{next}} and record',
+    holeCheckKeep: 'Record on H{{hole}}',
   },
   result: {
     title: 'Results',
