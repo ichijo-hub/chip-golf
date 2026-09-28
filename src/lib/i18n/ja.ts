@@ -149,6 +149,7 @@ export const ja = {
     holeShiftCurrent: '現在のホールも H{{from}} → H{{to}} にする',
     holeChangedForward: 'HOLE {{hole}} に進みました',
     holeChangedBack: 'HOLE {{hole}} に戻しました',
+    holeToastClose: '閉じる',
   },
   result: {
     title: '結果発表',

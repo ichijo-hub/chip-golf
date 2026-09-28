@@ -153,11 +153,9 @@ body {
 /* ホール変更トースト */
 @keyframes hole-toast {
   0%   { opacity: 0; transform: translateY(-4px); }
-  10%  { opacity: 1; transform: translateY(0); }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .hole-toast {
-  animation: hole-toast 2.5s ease forwards;
+  animation: hole-toast 0.25s ease forwards;
 }

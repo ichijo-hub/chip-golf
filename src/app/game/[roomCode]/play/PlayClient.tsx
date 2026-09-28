@@ -85,6 +85,8 @@ export default function PlayClient() {
   // ホール変更の通知（誰かがホールを送った／戻したことを全員に知らせる）
   const prevHoleRef = useRef<number | null>(null);
   const [holeChange, setHoleChange] = useState<{ count: number; hole: number; forward: boolean } | null>(null);
+  // 閉じたトーストの count（次のホール変更でまた出す）
+  const [dismissedHoleChange, setDismissedHoleChange] = useState(0);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -926,14 +928,22 @@ export default function PlayClient() {
                 <span className="text-white font-bold text-base leading-none">{game.current_hole}</span>
                 <span className="text-green-500 text-xs">/ {game.total_holes}</span>
               </button>
-              {holeChange && (
+              {holeChange && dismissedHoleChange !== holeChange.count && (
                 <div className="pointer-events-none absolute inset-x-0 top-full mt-1.5 z-30 flex justify-center">
                   <div
                     key={`hole-toast-${holeChange.count}`}
                     role="status"
-                    className="hole-toast whitespace-nowrap rounded-full bg-[#d4af37] text-[#1a1a1a] text-sm font-bold px-4 py-1 shadow-lg"
+                    className="hole-toast pointer-events-auto flex items-center gap-2 whitespace-nowrap rounded-full bg-[#d4af37] text-[#1a1a1a] text-sm font-bold pl-4 pr-1 py-1 shadow-lg"
                   >
                     {(holeChange.forward ? t.play.holeChangedForward : t.play.holeChangedBack).replace('{{hole}}', String(holeChange.hole))}
+                    <button
+                      type="button"
+                      onClick={() => setDismissedHoleChange(holeChange.count)}
+                      aria-label={t.play.holeToastClose}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-black/10 text-base leading-none"
+                    >
+                      {t.common.close}
+                    </button>
                   </div>
                 </div>
               )}

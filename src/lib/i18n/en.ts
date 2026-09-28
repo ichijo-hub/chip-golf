@@ -151,6 +151,7 @@ export const en: Translations = {
     holeShiftCurrent: 'Also change the current hole from H{{from}} to H{{to}}',
     holeChangedForward: 'Moved to HOLE {{hole}}',
     holeChangedBack: 'Back to HOLE {{hole}}',
+    holeToastClose: 'Close',
   },
   result: {
     title: 'Results',
