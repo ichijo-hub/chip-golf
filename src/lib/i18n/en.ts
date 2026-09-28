@@ -146,6 +146,11 @@ export const en: Translations = {
     holeCheckBody: 'This chip has already moved on H{{hole}}.',
     holeCheckAdvance: 'Advance to H{{next}} and record',
     holeCheckKeep: 'Record on H{{hole}}',
+    holeShiftLater: 'Also shift the {{count}} later chip move(s) by {{delta}} hole(s)',
+    holeShiftOutOfRange: 'Some later records would go outside the hole range, so they cannot be shifted together',
+    holeShiftCurrent: 'Also change the current hole from H{{from}} to H{{to}}',
+    holeChangedForward: 'Moved to HOLE {{hole}}',
+    holeChangedBack: 'Back to HOLE {{hole}}',
   },
   result: {
     title: 'Results',

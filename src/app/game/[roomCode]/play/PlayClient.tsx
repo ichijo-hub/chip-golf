@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRoomCode } from '@/hooks/useRoomCode';
 import {
-  doc, getDoc, collection, getDocs, addDoc, updateDoc, setDoc, deleteDoc,
+  doc, getDoc, collection, getDocs, addDoc, updateDoc, setDoc, deleteDoc, writeBatch,
   onSnapshot, query, orderBy, limit,
 } from 'firebase/firestore';
 import {
@@ -82,6 +82,9 @@ export default function PlayClient() {
   // ホール送り忘れの確認待ちになっているチップ移動
   const [pendingTransfer, setPendingTransfer] = useState<PendingTransfer | null>(null);
   const holeNavRef = useRef<HTMLDivElement | null>(null);
+  // ホール変更の通知（誰かがホールを送った／戻したことを全員に知らせる）
+  const prevHoleRef = useRef<number | null>(null);
+  const [holeChange, setHoleChange] = useState<{ count: number; hole: number; forward: boolean } | null>(null);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -178,6 +181,14 @@ export default function PlayClient() {
     const unsubGame = onSnapshot(doc(db, 'games', roomCode), (snap) => {
       if (!snap.exists()) return;
       const updated = { id: snap.id, ...snap.data() } as Game;
+      const prevHole = prevHoleRef.current;
+      prevHoleRef.current = updated.current_hole;
+      // 初回ロードでは通知しない
+      if (prevHole !== null && updated.current_hole !== prevHole) {
+        const forward = updated.current_hole > prevHole;
+        setHoleChange(prev => ({ count: (prev?.count ?? 0) + 1, hole: updated.current_hole, forward }));
+        navigator.vibrate?.([30, 50, 30]);
+      }
       setGame(updated);
       if (updated.status === 'finished') { localStorage.setItem('currentRoomCode', roomCode); router.push(`/game/__placeholder__/result?room=${roomCode}`); }
     });
@@ -564,6 +575,13 @@ export default function PlayClient() {
     return latest?.id === ev.id;
   }
 
+  /** この行より後に記録されたチップ移動行（ホール番号あり）。ホール番号の一括修正の対象 */
+  function laterChipEventsWithHole(ev: GameEvent): GameEvent[] {
+    return events.filter(e =>
+      e.id !== ev.id && isChipTransferEvent(e) && e.hole_number != null && e.created_at > ev.created_at
+    );
+  }
+
   function openLogEditor(ev: GameEvent) {
     if (!isHost) return;
     const sideGame = sideGameTypeOf(ev);
@@ -583,6 +601,7 @@ export default function PlayClient() {
     fromPlayerId: string | null,
     toPlayerId: string | null,
     holeNumber: number | null,
+    shift?: { later: GameEvent[]; delta: number; currentHole: number | null },
   ) {
     const now = new Date().toISOString();
     const syncState = isLatestEventForChip(ev);
@@ -592,13 +611,29 @@ export default function PlayClient() {
 
     setLogEditError('');
     try {
-      await updateDoc(doc(db, 'games', roomCode, 'game_events', ev.id), {
+      // 後続行のホール番号の一括修正と同時に行うので、途中で失敗しても半端にならないようバッチでまとめる
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'games', roomCode, 'game_events', ev.id), {
         from_player_id: fromPlayerId,
         to_player_id: toPlayerId,
         hole_number: holeNumber,
         description: chipDef ? `${chipDef.name}: ${fromName} → ${toName}` : (ev.description ?? null),
         edited_at: now,
       });
+      // ホール番号は記録にすぎずスコアに関係しないので、後続行では chip_states を触らない
+      if (shift) {
+        for (const later of shift.later) {
+          if (later.hole_number == null) continue;
+          batch.update(doc(db, 'games', roomCode, 'game_events', later.id), {
+            hole_number: later.hole_number + shift.delta,
+            edited_at: now,
+          });
+        }
+        if (shift.currentHole != null) {
+          batch.update(doc(db, 'games', roomCode), { current_hole: shift.currentHole });
+        }
+      }
+      await batch.commit();
 
       // 最新の記録を直したときだけ、実際のチップの持ち主（＝スコア）も合わせる
       if (syncState && ev.chip_state_id) {
@@ -741,6 +776,8 @@ export default function PlayClient() {
           players={players}
           isLatest={isLatestEventForChip(editingEvent)}
           totalHoles={hasHoles ? (game?.total_holes ?? 18) : 0}
+          laterEvents={laterChipEventsWithHole(editingEvent)}
+          currentHole={hasHoles ? (game?.current_hole ?? null) : null}
           locale={locale}
           t={t}
           error={logEditError}
@@ -877,15 +914,30 @@ export default function PlayClient() {
           </div>
           {/* 現在ホール（スクロールしても常に見えるように。タップでホール操作へ） */}
           {hasHoles && game && (
-            <button
-              onClick={() => holeNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-              aria-label={t.play.holeBadgeAria}
-              className="max-w-md mx-auto mt-1.5 w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#0d3d22] border border-green-700 py-0.5"
-            >
-              <span className="text-[#d4af37] text-xs font-semibold tracking-wider">HOLE</span>
-              <span className="text-white font-bold text-base leading-none">{game.current_hole}</span>
-              <span className="text-green-500 text-xs">/ {game.total_holes}</span>
-            </button>
+            <div className="relative max-w-md mx-auto mt-1.5">
+              <button
+                // key を変えて毎回アニメーションを確実に再生する
+                key={`hole-strip-${holeChange?.count ?? 0}`}
+                onClick={() => holeNavRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                aria-label={t.play.holeBadgeAria}
+                className={`w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#0d3d22] border border-green-700 py-0.5 ${holeChange ? 'hole-flash' : ''}`}
+              >
+                <span className="text-[#d4af37] text-xs font-semibold tracking-wider">HOLE</span>
+                <span className="text-white font-bold text-base leading-none">{game.current_hole}</span>
+                <span className="text-green-500 text-xs">/ {game.total_holes}</span>
+              </button>
+              {holeChange && (
+                <div className="pointer-events-none absolute inset-x-0 top-full mt-1.5 z-30 flex justify-center">
+                  <div
+                    key={`hole-toast-${holeChange.count}`}
+                    role="status"
+                    className="hole-toast whitespace-nowrap rounded-full bg-[#d4af37] text-[#1a1a1a] text-sm font-bold px-4 py-1 shadow-lg"
+                  >
+                    {(holeChange.forward ? t.play.holeChangedForward : t.play.holeChangedBack).replace('{{hole}}', String(holeChange.hole))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -1454,17 +1506,22 @@ function DraggableChip({
 }
 
 function EventEditModal({
-  event, chipDef, players, isLatest, totalHoles, locale, t, error, onSave, onDelete, onClose,
+  event, chipDef, players, isLatest, totalHoles, laterEvents, currentHole, locale, t, error, onSave, onDelete, onClose,
 }: {
   event: GameEvent;
   chipDef: ChipDefinition | null;
   players: Player[];
   isLatest: boolean;
   totalHoles: number; // 0 = ホール設定なし
+  laterEvents: GameEvent[]; // この行より後のチップ移動行（ホール番号あり）
+  currentHole: number | null;
   locale: 'ja' | 'en';
   t: ReturnType<typeof useT>['t'];
   error: string;
-  onSave: (ev: GameEvent, from: string | null, to: string | null, hole: number | null) => Promise<void>;
+  onSave: (
+    ev: GameEvent, from: string | null, to: string | null, hole: number | null,
+    shift?: { later: GameEvent[]; delta: number; currentHole: number | null },
+  ) => Promise<void>;
   onDelete: (ev: GameEvent) => Promise<void>;
   onClose: () => void;
 }) {
@@ -1473,13 +1530,31 @@ function EventEditModal({
   const [hole, setHole] = useState<number | null>(event.hole_number);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // ホール番号を変えたとき、後続の記録と現在ホールもまとめてずらす（送り忘れの後始末用）
+  const [shiftLater, setShiftLater] = useState(true);
+  const [shiftCurrent, setShiftCurrent] = useState(true);
+
+  const delta = hole != null && event.hole_number != null ? hole - event.hole_number : 0;
+  const canOfferShift = totalHoles > 0 && delta !== 0 && laterEvents.length > 0;
+  const shiftInRange = laterEvents.every(e => {
+    const h = (e.hole_number ?? 0) + delta;
+    return h >= 1 && h <= totalHoles;
+  });
+  const shiftedCurrent = currentHole != null ? currentHole + delta : null;
+  const canShiftCurrent = shiftedCurrent != null && shiftedCurrent >= 1 && shiftedCurrent <= totalHoles;
+  const applyShift = canOfferShift && shiftInRange && shiftLater;
 
   const selectClass = 'w-full bg-[#0d3320] border border-green-800 rounded-lg px-3 py-2 text-white text-base focus:outline-none focus:border-[#d4af37]';
 
   async function handleSave() {
     setSaving(true);
     try {
-      await onSave(event, fromId, toId, hole);
+      await onSave(
+        event, fromId, toId, hole,
+        applyShift
+          ? { later: laterEvents, delta, currentHole: canShiftCurrent && shiftCurrent ? shiftedCurrent : null }
+          : undefined,
+      );
     } finally {
       setSaving(false);
     }
@@ -1542,6 +1617,44 @@ function EventEditModal({
                   <option key={h} value={h}>{t.play.holeLabel}{h}</option>
                 ))}
               </select>
+              {canOfferShift && (
+                <div className="mt-2 rounded-lg bg-[#145a32] px-3 py-2 space-y-2">
+                  {shiftInRange ? (
+                    <>
+                      <label className="flex items-start gap-2 text-green-200 text-sm">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 w-4 h-4 accent-[#d4af37]"
+                          checked={shiftLater}
+                          onChange={e => setShiftLater(e.target.checked)}
+                        />
+                        <span>
+                          {t.play.holeShiftLater
+                            .replace('{{count}}', String(laterEvents.length))
+                            .replace('{{delta}}', delta > 0 ? `+${delta}` : String(delta))}
+                        </span>
+                      </label>
+                      {shiftLater && canShiftCurrent && (
+                        <label className="flex items-start gap-2 text-green-200 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 w-4 h-4 accent-[#d4af37]"
+                            checked={shiftCurrent}
+                            onChange={e => setShiftCurrent(e.target.checked)}
+                          />
+                          <span>
+                            {t.play.holeShiftCurrent
+                              .replace('{{from}}', String(currentHole))
+                              .replace('{{to}}', String(shiftedCurrent))}
+                          </span>
+                        </label>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-yellow-300 text-sm">{t.play.holeShiftOutOfRange}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

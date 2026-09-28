@@ -144,6 +144,11 @@ export const ja = {
     holeCheckBody: 'このチップはH{{hole}}で既に移動しています。',
     holeCheckAdvance: 'H{{next}}に進めて記録',
     holeCheckKeep: 'H{{hole}}のまま記録',
+    holeShiftLater: 'この後のチップ移動の記録（{{count}}件）もまとめて{{delta}}ホールずらす',
+    holeShiftOutOfRange: 'ずらすとホール範囲を超える記録があるため、まとめてずらせません',
+    holeShiftCurrent: '現在のホールも H{{from}} → H{{to}} にする',
+    holeChangedForward: 'HOLE {{hole}} に進みました',
+    holeChangedBack: 'HOLE {{hole}} に戻しました',
   },
   result: {
     title: '結果発表',

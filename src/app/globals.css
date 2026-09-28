@@ -138,3 +138,26 @@ body {
   animation: chip-flash 0.5s ease forwards;
   will-change: transform;
 }
+
+/* ホール変更の通知（HOLE帯を光らせる） */
+@keyframes hole-flash {
+  0%   { background-color: #0d3d22; box-shadow: none; }
+  25%  { background-color: #d4af37; box-shadow: 0 0 18px rgba(212, 175, 55, 0.9); }
+  100% { background-color: #0d3d22; box-shadow: none; }
+}
+
+.hole-flash {
+  animation: hole-flash 1.2s ease 2;
+}
+
+/* ホール変更トースト */
+@keyframes hole-toast {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  10%  { opacity: 1; transform: translateY(0); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.hole-toast {
+  animation: hole-toast 2.5s ease forwards;
+}
