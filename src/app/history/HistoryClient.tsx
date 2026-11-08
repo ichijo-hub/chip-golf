@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   doc, getDoc, collection, getDocs, query, orderBy,
+  getDocFromCache, getDocsFromCache,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { loadHistory } from '@/lib/gameHistory';
+import { loadHistory, loadHistoryFromCache, HistoryEntry } from '@/lib/gameHistory';
 import { deleteGameCompletely } from '@/lib/deleteGame';
 import { calculateScores } from '@/lib/scoring';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
@@ -34,53 +35,85 @@ export default function HistoryClient() {
   const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+
+    // fromCache=true: 端末キャッシュだけで即座に組み立てる（サーバーを待たない）
+    // fromCache=false: サーバーから最新を取り直す（電波が弱いと数秒〜十数秒かかる）
+    async function fetchSummary(entry: HistoryEntry, fromCache: boolean): Promise<GameSummary | null> {
+      const gDoc = fromCache ? getDocFromCache : getDoc;
+      const gDocs = fromCache ? getDocsFromCache : getDocs;
+      const gameSnap = await gDoc(doc(db, 'games', entry.roomCode));
+      if (!gameSnap.exists()) return null;
+      const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
+
+      const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
+        gDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
+        gDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
+        gDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
+      ]);
+
+      const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+      const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
+      const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
+      // キャッシュに一部しか無いゲームは、誤ったスコアを出さないようサーバー取得に任せる
+      if (fromCache && (players.length === 0 || chipDefs.length === 0 || chipStates.length === 0)) return null;
+      const scores = calculateScores(players, chipStates, chipDefs);
+
+      return {
+        game,
+        players,
+        netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
+        joinedAt: entry.joinedAt,
+        isHost: !!game.host_player_id
+          && localStorage.getItem(`player_${entry.roomCode}`) === game.host_player_id,
+      };
+    }
+
+    function upsert(summary: GameSummary) {
+      if (cancelled) return;
+      // 同じルームは置き換える（キャッシュ→サーバーの2段階更新・StrictMode の二重実行対策）
+      setSummaries(prev =>
+        [...prev.filter(s => s.game.room_code !== summary.game.room_code), summary].sort(
+          (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
+        )
+      );
+    }
+
+    async function loadPass(history: HistoryEntry[], fromCache: boolean) {
+      await Promise.all(history.map(async (entry) => {
+        try {
+          const summary = await fetchSummary(entry, fromCache);
+          if (summary) upsert(summary);
+          // サーバーに無い（削除済み）ゲームはキャッシュ表示分も消す
+          else if (!fromCache && !cancelled) setSummaries(prev => prev.filter(s => s.game.room_code !== entry.roomCode));
+        } catch {
+          // 個別エラー（キャッシュ未保存など）は無視して他のゲームを継続
+        }
+      }));
+    }
+
     async function load() {
+      // 1) キャッシュから即表示
+      const cached = (await loadHistoryFromCache()).slice(0, 15); // 最大15件
+      if (cached.length > 0) {
+        await loadPass(cached, true);
+        if (!cancelled) setLoading(false);
+      }
+      // 2) サーバーから最新に更新
       try {
-        const history = (await loadHistory()).slice(0, 15); // 最大15件
-        setLoading(false);
-        if (history.length === 0) return;
-
-        await Promise.all(history.map(async (entry) => {
-          try {
-            const gameSnap = await getDoc(doc(db, 'games', entry.roomCode));
-            if (!gameSnap.exists()) return;
-            const game = { id: gameSnap.id, ...gameSnap.data() } as Game;
-
-            const [playersSnap, chipDefsSnap, chipStatesSnap] = await Promise.all([
-              getDocs(query(collection(db, 'games', entry.roomCode, 'players'), orderBy('display_order'))),
-              getDocs(collection(db, 'games', entry.roomCode, 'chip_definitions')),
-              getDocs(collection(db, 'games', entry.roomCode, 'chip_states')),
-            ]);
-
-            const players = playersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-            const chipDefs = chipDefsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipDefinition));
-            const chipStates = chipStatesSnap.docs.map(d => ({ id: d.id, ...d.data() } as ChipState));
-            const scores = calculateScores(players, chipStates, chipDefs);
-
-            const summary: GameSummary = {
-              game,
-              players,
-              netScores: scores.map(s => ({ player: s.player, netScore: s.netScore })),
-              joinedAt: entry.joinedAt,
-              isHost: !!game.host_player_id
-                && localStorage.getItem(`player_${entry.roomCode}`) === game.host_player_id,
-            };
-
-            // 同じルームを重複追加しない（StrictMode の二重実行対策。キー重複を防ぐ）
-            setSummaries(prev =>
-              [...prev.filter(s => s.game.room_code !== summary.game.room_code), summary].sort(
-                (a, b) => new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime()
-              )
-            );
-          } catch {
-            // 個別エラーは無視して他のゲームを継続
-          }
-        }));
+        const history = (await loadHistory()).slice(0, 15);
+        if (!cancelled) {
+          const codes = new Set(history.map(h => h.roomCode));
+          setSummaries(prev => prev.filter(s => codes.has(s.game.room_code)));
+          setLoading(false);
+        }
+        await loadPass(history, false);
       } catch {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+    return () => { cancelled = true; };
   }, []);
 
   async function handleDelete() {

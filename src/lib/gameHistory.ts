@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, getDocs, collection, orderBy, query, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, getDocsFromCache, collection, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { getDeviceId } from '@/lib/deviceId';
 
@@ -44,6 +44,19 @@ async function migrateOldUuidData(deviceId: string): Promise<void> {
     localStorage.removeItem(LEGACY_DEVICE_ID_KEY);
   } catch {
     // 失敗時は次回リトライ
+  }
+}
+
+/** 端末のキャッシュにある履歴だけを即座に返す（サーバーを待たない。キャッシュが無ければ空配列） */
+export async function loadHistoryFromCache(): Promise<HistoryEntry[]> {
+  try {
+    const deviceId = await getDeviceId();
+    const snap = await getDocsFromCache(
+      query(collection(db, 'device_data', deviceId, 'game_history'), orderBy('joinedAt', 'desc'))
+    );
+    return snap.docs.map(d => d.data() as HistoryEntry);
+  } catch {
+    return [];
   }
 }
 
