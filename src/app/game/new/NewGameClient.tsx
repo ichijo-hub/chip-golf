@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  doc, updateDoc, collection, getDocs, writeBatch,
+  doc, collection, getDocs, writeBatch,
   query, orderBy, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
@@ -67,11 +67,13 @@ export default function NewGameClient() {
       const roomCode = generateRoomCode();
       const batch = writeBatch(db);
 
-      // Game document (room_code as ID)
+      // プレイヤー ID は端末側で採番されるので、ゲーム本体と同じバッチで host_player_id を書ける
       const gameRef = doc(db, 'games', roomCode);
+      const playerRef = doc(collection(db, 'games', roomCode, 'players'));
+      const playerId = playerRef.id;
       batch.set(gameRef, {
         id: roomCode, room_code: roomCode, status: 'lobby',
-        host_player_id: null,
+        host_player_id: playerId,
         hole_mode: 'none', total_holes: 0, current_hole: 1,
         olympic_enabled: olympicEnabled,
         dracon_enabled: draconEnabled,
@@ -80,8 +82,6 @@ export default function NewGameClient() {
       });
 
       // Host player
-      const playerRef = doc(collection(db, 'games', roomCode, 'players'));
-      const playerId = playerRef.id;
       batch.set(playerRef, {
         id: playerId, game_id: roomCode, name: hostName.trim(),
         display_order: 0, is_host: true, created_at: new Date().toISOString(),
@@ -108,11 +108,9 @@ export default function NewGameClient() {
 
       await batch.commit();
 
-      // Update host_player_id after batch (batch can't read generated IDs)
-      await updateDoc(gameRef, { host_player_id: playerId });
-
       localStorage.setItem(`player_${roomCode}`, playerId);
-      await saveToHistory(roomCode);
+      // 履歴保存は画面遷移を待たせない（電波が弱いと往復が重なって作成が固まって見えるため）
+      saveToHistory(roomCode).catch(err => console.error(err));
       localStorage.setItem('currentRoomCode', roomCode);
       router.push(`/game/__placeholder__/lobby?room=${roomCode}`);
     } catch (err) {
