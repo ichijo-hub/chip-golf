@@ -455,3 +455,9 @@ npx firebase deploy --only firestore:rules
 ### サイドゲームのログ行は addDoc する前に同ホール・同種目の既存行を削除する
 
 しないと同じホールを再入力するたびにログ行が増え、精算と食い違って見える。
+
+### 代理プレイヤーの引き継ぎはプレイヤー ID を作り直さない
+
+- ホストが登録した `is_proxy: true` のプレイヤーを本人の端末に引き継ぐときは、必ず `src/lib/proxyPlayers.ts` の
+  `claimProxyPlayer`（`runTransaction` で二重引き継ぎを防ぐ）を使う
+- 新しいプレイヤー行を作ってチップや履歴を移す方式にしないこと（`chip_states` / `game_events` / サイドゲームログの参照が壊れる）

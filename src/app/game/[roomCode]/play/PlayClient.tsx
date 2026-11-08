@@ -27,6 +27,7 @@ import LangToggle from '@/components/LangToggle';
 import { saveGameChipsToLibrary } from '@/lib/chipLibrary';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 import { formatEventLabel, isChipTransferEvent, sideGameTypeOf } from '@/lib/eventLabel';
+import { addProxyPlayer, claimProxyPlayer, ProxyAlreadyClaimedError } from '@/lib/proxyPlayers';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -73,6 +74,13 @@ export default function PlayClient() {
   const [copiedRoom, setCopiedRoom] = useState(false);
   const [spectatorConfirmOpen, setSpectatorConfirmOpen] = useState(false);
   const [playerConfirmOpen, setPlayerConfirmOpen] = useState(false);
+  // 代理プレイヤー: ホストの追加モーダル / 観戦者の引き継ぎモーダル
+  const [addProxyOpen, setAddProxyOpen] = useState(false);
+  const [proxyName, setProxyName] = useState('');
+  const [proxyBusy, setProxyBusy] = useState(false);
+  const [proxyError, setProxyError] = useState('');
+  const [claimOpen, setClaimOpen] = useState(false);
+  const [claimTarget, setClaimTarget] = useState<Player | null>(null);
   const [editingEvent, setEditingEvent] = useState<GameEvent | null>(null);
   const [logEditError, setLogEditError] = useState('');
   // ログ行から過去ホールのサイドゲームを開くとき、その対象ホール（null = 現在ホール）
@@ -524,6 +532,7 @@ export default function PlayClient() {
   const me = players.find(p => p.id === myPlayerId);
   const isSpectator = me?.is_spectator ?? false;
   const isDragging = !!dragActiveChip;
+  const unclaimedProxies = players.filter(p => p.is_proxy === true);
 
   async function toggleSpectator() {
     if (!me || !myPlayerId || isHost) return;
@@ -683,6 +692,41 @@ export default function PlayClient() {
       setSpectatorConfirmOpen(true);
     } else {
       setPlayerConfirmOpen(true);
+    }
+  }
+
+  async function handleAddProxy() {
+    if (!isHost || !proxyName.trim()) return;
+    setProxyBusy(true);
+    setProxyError('');
+    try {
+      const nextOrder = players.reduce((m, p) => Math.max(m, p.display_order ?? 0), -1) + 1;
+      await addProxyPlayer(roomCode, proxyName, nextOrder);
+      setProxyName('');
+      setAddProxyOpen(false);
+    } catch (err: unknown) {
+      setProxyError(t.proxy.error.replace('{{error}}', err instanceof Error ? err.message : String(err)));
+    } finally {
+      setProxyBusy(false);
+    }
+  }
+
+  async function handleClaim() {
+    if (!claimTarget) return;
+    setProxyBusy(true);
+    setProxyError('');
+    try {
+      await claimProxyPlayer(roomCode, claimTarget.id, myPlayerId);
+      setMyPlayerId(claimTarget.id);
+      setClaimTarget(null);
+      setClaimOpen(false);
+    } catch (err: unknown) {
+      setProxyError(err instanceof ProxyAlreadyClaimedError
+        ? t.proxy.alreadyClaimed
+        : t.proxy.claimError.replace('{{error}}', err instanceof Error ? err.message : String(err)));
+      setClaimTarget(null);
+    } finally {
+      setProxyBusy(false);
     }
   }
 
@@ -997,6 +1041,32 @@ export default function PlayClient() {
                 </div>
               )}
 
+              {/* 代理プレイヤーの追加（ホストのみ） */}
+              {isHost && (
+                <>
+                  <div className="border-t border-green-800" />
+                  <button
+                    onClick={() => { setMenuOpen(false); setProxyError(''); setAddProxyOpen(true); }}
+                    className="w-full text-left text-sm py-1 text-green-300 hover:text-[#d4af37] transition-colors"
+                  >
+                    ➕ {t.proxy.addMenu}
+                  </button>
+                </>
+              )}
+
+              {/* 代理プレイヤーの引き継ぎ（観戦者のみ） */}
+              {isSpectator && !isHost && unclaimedProxies.length > 0 && (
+                <>
+                  <div className="border-t border-green-800" />
+                  <button
+                    onClick={() => { setMenuOpen(false); setProxyError(''); setClaimTarget(null); setClaimOpen(true); }}
+                    className="w-full text-left text-sm py-1 text-[#d4af37] hover:text-yellow-300 transition-colors font-semibold"
+                  >
+                    🙋 {t.proxy.claimMenu}
+                  </button>
+                </>
+              )}
+
               {/* 観戦者 ↔ プレイヤー切替（ホスト以外のみ） */}
               {!isHost && (
                 <>
@@ -1056,6 +1126,98 @@ export default function PlayClient() {
                   {t.common.cancel}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 代理プレイヤー追加モーダル（ホストのみ） */}
+        {addProxyOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="card-casino w-full max-w-sm">
+              <p className="text-[#d4af37] font-bold mb-1">➕ {t.proxy.addTitle}</p>
+              <p className="text-green-500 text-xs mb-3">{t.proxy.addNote}</p>
+              <input
+                type="text" value={proxyName} autoFocus
+                onChange={e => setProxyName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); handleAddProxy(); } }}
+                placeholder={t.proxy.namePlaceholder} maxLength={20}
+                className="w-full bg-[#145a32] border border-green-700 rounded-lg px-4 py-3 mb-3
+                           text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
+              />
+              {proxyError && <p className="text-red-400 text-sm mb-3">{proxyError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddProxy}
+                  disabled={proxyBusy || !proxyName.trim()}
+                  className="btn-gold flex-1 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {proxyBusy ? t.proxy.adding : t.proxy.addButton}
+                </button>
+                <button
+                  onClick={() => { setAddProxyOpen(false); setProxyName(''); }}
+                  className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors"
+                >
+                  {t.common.cancel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 代理プレイヤー引き継ぎモーダル（観戦者のみ） */}
+        {claimOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="card-casino w-full max-w-sm">
+              {claimTarget ? (
+                <>
+                  <p className="text-[#d4af37] font-bold mb-2">🙋 {t.proxy.claimConfirm.replace('{{name}}', claimTarget.name)}</p>
+                  <p className="text-green-300 text-sm mb-4">{t.proxy.claimConfirmDetail}</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleClaim}
+                      disabled={proxyBusy}
+                      className="btn-gold flex-1 py-2 disabled:opacity-40"
+                    >
+                      {proxyBusy ? t.proxy.claiming : t.play.confirm}
+                    </button>
+                    <button
+                      onClick={() => setClaimTarget(null)}
+                      disabled={proxyBusy}
+                      className="flex-1 py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors"
+                    >
+                      {t.common.back}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[#d4af37] font-bold mb-1">🙋 {t.proxy.claimTitle}</p>
+                  <p className="text-green-500 text-xs mb-3">{t.proxy.claimNote}</p>
+                  {proxyError && <p className="text-red-400 text-sm mb-3">{proxyError}</p>}
+                  {unclaimedProxies.length === 0 ? (
+                    <p className="text-green-600 text-sm mb-3">—</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      {unclaimedProxies.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setProxyError(''); setClaimTarget(p); }}
+                          className="py-3 px-3 rounded-lg bg-[#145a32] border border-[#d4af37]/60 text-white
+                                     hover:border-[#d4af37] transition-colors text-sm font-medium truncate"
+                        >
+                          👤 {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setClaimOpen(false)}
+                    className="w-full py-2 rounded-lg border border-green-700 text-green-300 hover:border-green-500 transition-colors"
+                  >
+                    {t.common.cancel}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1249,6 +1411,9 @@ export default function PlayClient() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-white font-semibold text-lg">{player.name}</span>
                     {player.id === myPlayerId && <span className="text-base text-green-400">{t.common.you}</span>}
+                    {player.is_proxy && (
+                      <span className="text-xs border border-[#d4af37]/60 text-[#d4af37] px-1.5 py-0.5 rounded">{t.proxy.badge}</span>
+                    )}
                     {player.is_host && (
                       <span className="text-base bg-[#d4af37] text-[#1a1a1a] px-1.5 py-0.5 rounded font-semibold">{t.common.host}</span>
                     )}

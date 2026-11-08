@@ -25,6 +25,8 @@ export interface Player {
   is_host: boolean;
   is_spectator: boolean;
   comments: string[];
+  is_proxy?: boolean;          // true = ホストが代理登録し、まだどの端末にも引き継がれていない
+  claimed_at?: string | null;  // 代理プレイヤーが端末に引き継がれた日時
   created_at: string;
 }
 

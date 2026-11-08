@@ -11,6 +11,7 @@ import {
 import { db } from '@/lib/firebase/client';
 import { saveToHistory } from '@/lib/gameHistory';
 import { deleteGameCompletely } from '@/lib/deleteGame';
+import { addProxyPlayer, removeProxyPlayer, claimProxyPlayer, ProxyAlreadyClaimedError } from '@/lib/proxyPlayers';
 import { Game, Player, HoleMode } from '@/types';
 
 const HOLE_MODES: HoleMode[] = ['9h', '18h_out', '18h_in'];
@@ -38,6 +39,9 @@ export default function LobbyClient() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [lobbyUrl, setLobbyUrl] = useState('');
+  const [proxyName, setProxyName] = useState('');
+  const [addingProxy, setAddingProxy] = useState(false);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const loadGame = useCallback(async () => {
     if (!roomCode) { router.push('/'); return; }
@@ -123,6 +127,51 @@ export default function LobbyClient() {
     }
   }
 
+  async function handleAddProxy() {
+    if (!proxyName.trim()) return;
+    setAddingProxy(true);
+    setError('');
+    try {
+      const nextOrder = players.reduce((m, p) => Math.max(m, p.display_order ?? 0), -1) + 1;
+      await addProxyPlayer(roomCode, proxyName, nextOrder);
+      setProxyName('');
+    } catch (err: unknown) {
+      setError(t.proxy.error.replace('{{error}}', err instanceof Error ? err.message : String(err)));
+    } finally {
+      setAddingProxy(false);
+    }
+  }
+
+  async function handleRemoveProxy(p: Player) {
+    if (!confirm(t.proxy.confirmRemove.replace('{{name}}', p.name))) return;
+    try {
+      await removeProxyPlayer(roomCode, p.id);
+    } catch (err: unknown) {
+      setError(t.proxy.error.replace('{{error}}', err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function handleClaim(p: Player) {
+    if (!game) return;
+    if (!confirm(`${t.proxy.claimConfirm.replace('{{name}}', p.name)}\n${t.proxy.claimConfirmDetail}`)) return;
+    setClaimingId(p.id);
+    setError('');
+    try {
+      await claimProxyPlayer(roomCode, p.id, myPlayerId);
+      setMyPlayerId(p.id);
+      if (game.status === 'playing') {
+        localStorage.setItem('currentRoomCode', roomCode);
+        router.push(`/game/__placeholder__/play?room=${roomCode}`);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof ProxyAlreadyClaimedError
+        ? t.proxy.alreadyClaimed
+        : t.proxy.claimError.replace('{{error}}', err instanceof Error ? err.message : String(err)));
+    } finally {
+      setClaimingId(null);
+    }
+  }
+
   async function handleStartGame() {
     if (!game?.hole_mode || game.hole_mode === 'none') {
       setError(t.lobby.errorHoleRequired);
@@ -154,6 +203,7 @@ export default function LobbyClient() {
   const isHost = myPlayerId === game?.host_player_id;
   const isJoined = !!myPlayerId;
   const nonSpectatorCount = players.filter(p => !p.is_spectator).length;
+  const unclaimedProxies = players.filter(p => p.is_proxy === true);
 
   if (loading) {
     return (
@@ -210,6 +260,28 @@ export default function LobbyClient() {
             {game?.status === 'playing' && (
               <p className="text-green-500 text-xs mb-3">{t.lobby.joinInProgressNote}</p>
             )}
+            {unclaimedProxies.length > 0 && (
+              <div className="mb-4">
+                <p className="text-green-300 text-sm font-semibold mb-1">{t.proxy.claimSection}</p>
+                <p className="text-green-600 text-xs mb-2">{t.proxy.claimNote}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {unclaimedProxies.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleClaim(p)}
+                      disabled={claimingId !== null}
+                      className="py-3 px-3 rounded-lg bg-[#145a32] border border-[#d4af37]/60 text-white
+                                 hover:border-[#d4af37] transition-colors text-sm font-medium truncate
+                                 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {claimingId === p.id ? t.proxy.claiming : `👤 ${p.name}`}
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t border-green-800 mt-4" />
+              </div>
+            )}
             <div className="space-y-3">
               <input
                 type="text" value={playerName}
@@ -260,9 +332,24 @@ export default function LobbyClient() {
                         {t.play.spectator}
                       </span>
                     )}
+                    {p.is_proxy && (
+                      <span className="text-xs border border-[#d4af37]/60 text-[#d4af37] px-2 py-0.5 rounded">
+                        {t.proxy.badge}
+                      </span>
+                    )}
                   </div>
                   {p.is_host && (
                     <span className="text-xs bg-[#d4af37] text-[#1a1a1a] px-2 py-0.5 rounded font-semibold">{t.common.host}</span>
+                  )}
+                  {isHost && p.is_proxy && game?.status === 'lobby' && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProxy(p)}
+                      aria-label={t.proxy.remove}
+                      className="text-green-600 hover:text-red-400 transition-colors text-lg leading-none px-1"
+                    >
+                      ✕
+                    </button>
                   )}
                 </li>
               ))}
@@ -272,6 +359,28 @@ export default function LobbyClient() {
 
         {isHost && isJoined && (
           <div className="space-y-3">
+            <div className="card-casino">
+              <p className="text-[#d4af37] font-semibold mb-1">{t.proxy.addTitle}</p>
+              <p className="text-green-600 text-xs mb-3">{t.proxy.addNote}</p>
+              <div className="flex gap-2">
+                <input
+                  type="text" value={proxyName}
+                  onChange={(e) => setProxyName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); handleAddProxy(); } }}
+                  placeholder={t.proxy.namePlaceholder} maxLength={20}
+                  className="flex-1 min-w-0 bg-[#145a32] border border-green-700 rounded-lg px-4 py-3
+                             text-white placeholder-green-600 focus:outline-none focus:border-[#d4af37]"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddProxy}
+                  disabled={addingProxy || !proxyName.trim()}
+                  className="btn-gold px-5 py-3 text-sm shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {addingProxy ? t.proxy.adding : t.proxy.addButton}
+                </button>
+              </div>
+            </div>
             <div className="card-casino">
               <p className="text-[#d4af37] font-semibold mb-3">{t.newGame.holeSetting}</p>
               <div className="grid grid-cols-2 gap-2">
