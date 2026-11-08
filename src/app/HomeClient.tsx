@@ -8,6 +8,7 @@ const QRScanner = dynamic(() => import('@/components/QRScanner'), { ssr: false }
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { loadHistory } from '@/lib/gameHistory';
+import { isStaleGame } from '@/lib/staleGame';
 import { Game } from '@/types';
 import Logo from '@/components/Logo';
 import LangToggle from '@/components/LangToggle';
@@ -46,7 +47,8 @@ export default function HomeClient() {
             game: { id: snap.id, ...snap.data() } as Game,
             roomCode,
           }))
-          .filter(({ game }) => game.status !== 'finished');
+          // 終了済みと、ホストが閉じずに24時間以上たったゲームは開催中に出さない
+          .filter(({ game }) => game.status !== 'finished' && !isStaleGame(game));
 
         const results = await Promise.all(
           activeEntries.map(async ({ game, roomCode }) => {

@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase/client';
 import { loadHistory, loadHistoryFromCache, HistoryEntry } from '@/lib/gameHistory';
 import { deleteGameCompletely } from '@/lib/deleteGame';
 import { calculateScores } from '@/lib/scoring';
+import { isStaleGame } from '@/lib/staleGame';
 import { Game, Player, ChipDefinition, ChipState } from '@/types';
 import Logo from '@/components/Logo';
 import { useT } from '@/lib/i18n';
@@ -92,6 +93,10 @@ export default function HistoryClient() {
       }));
     }
 
+    // サーバーの応答が遅くても「読み込み中」で止まり続けないよう、一定時間で一覧（空でも）を出す。
+    // サーバーから届いた分は後から一覧に追加される
+    const loadingFallback = setTimeout(() => { if (!cancelled) setLoading(false); }, 3000);
+
     async function load() {
       // 1) キャッシュから即表示
       const cached = (await loadHistoryFromCache()).slice(0, 15); // 最大15件
@@ -113,7 +118,7 @@ export default function HistoryClient() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(loadingFallback); };
   }, []);
 
   async function handleDelete() {
@@ -166,9 +171,10 @@ export default function HistoryClient() {
                       <span className="font-mono font-bold text-[#d4af37] tracking-widest">{game.room_code}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium
                         ${game.status === 'finished' ? 'bg-green-900 text-green-300' :
+                          isStaleGame(game) ? 'bg-gray-800 text-gray-400' :
                           game.status === 'playing' ? 'bg-yellow-900 text-yellow-300' :
                           'bg-gray-800 text-gray-400'}`}>
-                        {statusLabel(game.status)}
+                        {isStaleGame(game) ? t.history.unfinished : statusLabel(game.status)}
                       </span>
                     </div>
                     <p className="text-green-600 text-xs mt-1">

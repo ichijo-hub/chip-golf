@@ -1,4 +1,4 @@
-const CACHE = 'chip-golf-v1';
+const CACHE = 'chip-golf-v2';
 const PRECACHE = ['/', '/game/new'];
 
 self.addEventListener('install', (e) => {
@@ -20,8 +20,10 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Supabase APIはキャッシュしない（リアルタイム通信）
-  if (url.hostname.includes('supabase.co')) return;
+  // 他オリジン（Firestore / Firebase Storage / Google Fonts など）には一切介入しない。
+  // Firestore の Listen は長時間つながり続ける GET ストリームで、Service Worker が fetch で中継して
+  // キャッシュに書こうとすると応答が遅れたり止まったりする（履歴の読み込み中が終わらない原因）
+  if (url.origin !== self.location.origin) return;
 
   // GETリクエストのみキャッシュ対象
   if (e.request.method !== 'GET') return;

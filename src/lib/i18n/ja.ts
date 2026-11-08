@@ -253,6 +253,7 @@ export const ja = {
     finished: '終了',
     playing: '進行中',
     waiting: '待機中',
+    unfinished: '未終了',
     deleteGame: '削除',
     confirmDelete: 'このゲームを削除しますか？',
     confirmDeleteDetail: '「{{roomCode}}」のスコア・ログが参加者全員分まとめて削除されます。この操作は取り消せません。',

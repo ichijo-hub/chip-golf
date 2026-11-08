@@ -461,3 +461,8 @@ npx firebase deploy --only firestore:rules
 - ホストが登録した `is_proxy: true` のプレイヤーを本人の端末に引き継ぐときは、必ず `src/lib/proxyPlayers.ts` の
   `claimProxyPlayer`（`runTransaction` で二重引き継ぎを防ぐ）を使う
 - 新しいプレイヤー行を作ってチップや履歴を移す方式にしないこと（`chip_states` / `game_events` / サイドゲームログの参照が壊れる）
+
+### Service Worker（`public/sw.js`）は他オリジンのリクエストに触らない
+
+- Firestore / Firebase Storage などの通信を SW で中継・キャッシュすると、Listen ストリームが遅延・停止する
+- fetch ハンドラ先頭の `if (url.origin !== self.location.origin) return;` を消さないこと。SW を変えたら `CACHE` の版を上げる

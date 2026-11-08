@@ -255,6 +255,7 @@ export const en: Translations = {
     finished: 'Finished',
     playing: 'Playing',
     waiting: 'Waiting',
+    unfinished: 'Not finished',
     deleteGame: 'Delete',
     confirmDelete: 'Delete this game?',
     confirmDeleteDetail: 'All scores and logs for "{{roomCode}}" will be deleted for every player. This cannot be undone.',
