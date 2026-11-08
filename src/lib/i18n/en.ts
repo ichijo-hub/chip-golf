@@ -95,8 +95,8 @@ export const en: Translations = {
     errorHoleRequired: 'Hole settings are required to start the game',
   },
   proxy: {
-    addTitle: 'Add players without a phone',
-    addNote: 'The host can play on behalf of people without a phone. They can join later and take over their own player.',
+    addTitle: 'Add other players (as proxy)',
+    addNote: 'The host can add and play for other players. They can also join later and take over.',
     namePlaceholder: 'Player name',
     addButton: 'Add',
     adding: 'Adding...',
@@ -112,7 +112,7 @@ export const en: Translations = {
     claiming: 'Taking over...',
     alreadyClaimed: 'Someone else has already taken over this player',
     claimError: 'Failed to take over: {{error}}',
-    addMenu: 'Add player (no phone)',
+    addMenu: 'Add other players (as proxy)',
     error: 'Something went wrong: {{error}}',
   },
   play: {

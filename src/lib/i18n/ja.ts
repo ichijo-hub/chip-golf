@@ -93,8 +93,8 @@ export const ja = {
     errorHoleRequired: 'ゲームを開始するにはホール設定が必要です',
   },
   proxy: {
-    addTitle: 'スマホなしの参加者を追加',
-    addNote: 'スマホを持っていない人の分もホストが操作できます。後からその人が参加して自分で操作することもできます。',
+    addTitle: '他の参加者の代理追加',
+    addNote: '他の参加者の分もホストが追加・操作できます。後からその人が参加して操作することも可能です。',
     namePlaceholder: '参加者の名前',
     addButton: '追加',
     adding: '追加中...',
@@ -110,7 +110,7 @@ export const ja = {
     claiming: '引き継ぎ中...',
     alreadyClaimed: 'このプレイヤーはすでに他の人が引き継ぎました',
     claimError: '引き継ぎに失敗しました: {{error}}',
-    addMenu: '参加者を追加（スマホなし）',
+    addMenu: '他の参加者の代理追加',
     error: '処理に失敗しました: {{error}}',
   },
   play: {
