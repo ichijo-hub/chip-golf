@@ -28,6 +28,7 @@ import { saveGameChipsToLibrary } from '@/lib/chipLibrary';
 import { chipNamesEn, chipConditionsEn } from '@/lib/i18n/chipNames';
 import { formatEventLabel, isChipTransferEvent, sideGameTypeOf } from '@/lib/eventLabel';
 import { addProxyPlayer, claimProxyPlayer, ProxyAlreadyClaimedError } from '@/lib/proxyPlayers';
+import { getGameJoinUrl, shareGameLink } from '@/lib/shareLink';
 
 interface ChipSelection {
   chipState: ChipState;
@@ -72,6 +73,7 @@ export default function PlayClient() {
   const dragOccurredRef = useRef(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedRoom, setCopiedRoom] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [spectatorConfirmOpen, setSpectatorConfirmOpen] = useState(false);
   const [playerConfirmOpen, setPlayerConfirmOpen] = useState(false);
   // 代理プレイヤー: ホストの追加モーダル / 観戦者の引き継ぎモーダル
@@ -680,6 +682,16 @@ export default function PlayClient() {
     }
   }
 
+  async function handleShareLink() {
+    const result = await shareGameLink(roomCode, t.share.text.replace('{{code}}', roomCode));
+    if (result === 'copied') {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } else if (result === 'failed') {
+      window.prompt('', getGameJoinUrl(roomCode));
+    }
+  }
+
   function copyRoomCodeToClipboard() {
     navigator.clipboard.writeText(roomCode);
     setCopiedRoom(true);
@@ -1013,6 +1025,15 @@ export default function PlayClient() {
                   {copiedRoom ? t.play.copied : t.play.copyRoomCode}
                 </button>
               </div>
+
+              {/* 招待リンクの共有（ブラウザ版の待機ルーム URL） */}
+              <button
+                onClick={handleShareLink}
+                className="w-full py-2 rounded-lg border border-green-700 text-green-300
+                           hover:border-[#d4af37] hover:text-[#d4af37] transition-colors text-sm"
+              >
+                {linkCopied ? t.share.copied : t.share.button}
+              </button>
 
               {/* 言語切替 */}
               <div className="flex items-center justify-between">

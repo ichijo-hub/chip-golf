@@ -351,6 +351,11 @@ export const ja = {
     step10desc: 'ゲームが終わったら「ゲーム終了」ボタンを押しましょう',
     step10sub: '最終順位が表示されます 🏆',
   },
+  share: {
+    button: '🔗 招待リンクを共有',
+    copied: '✓ リンクをコピーしました',
+    text: 'チップゴルフのゲーム（ルームコード {{code}}）に参加しよう',
+  },
 } as const;
 
 // Recursive type that converts all leaf values to string

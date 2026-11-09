@@ -353,4 +353,9 @@ export const en: Translations = {
     step10desc: 'When the game is over, press the "End Game" button',
     step10sub: 'Final rankings will be shown 🏆',
   },
+  share: {
+    button: '🔗 Share invite link',
+    copied: '✓ Link copied',
+    text: 'Join my Chip Golf game (room code {{code}})',
+  },
 };

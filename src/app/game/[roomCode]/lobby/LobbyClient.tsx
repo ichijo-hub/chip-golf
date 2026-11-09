@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRoomCode } from '@/hooks/useRoomCode';
 import { QRCodeSVG } from 'qrcode.react';
+import { getGameJoinUrl, shareGameLink } from '@/lib/shareLink';
 import {
   doc, getDoc, collection, getDocs, addDoc, updateDoc,
   onSnapshot, query, orderBy,
@@ -39,6 +40,7 @@ export default function LobbyClient() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [lobbyUrl, setLobbyUrl] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   const [proxyName, setProxyName] = useState('');
   const [addingProxy, setAddingProxy] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
@@ -69,8 +71,7 @@ export default function LobbyClient() {
   }, [roomCode, router]);
 
   useEffect(() => {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-    setLobbyUrl(`${baseUrl}/game/__placeholder__/lobby?room=${roomCode}`);
+    setLobbyUrl(getGameJoinUrl(roomCode));
     const savedId = localStorage.getItem(`player_${roomCode}`);
     if (savedId) setMyPlayerId(savedId);
     loadGame();
@@ -194,6 +195,16 @@ export default function LobbyClient() {
     router.push('/');
   }
 
+  async function handleShareLink() {
+    const result = await shareGameLink(roomCode, t.share.text.replace('{{code}}', roomCode));
+    if (result === 'copied') {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } else if (result === 'failed') {
+      window.prompt('', getGameJoinUrl(roomCode));
+    }
+  }
+
   function copyRoomCode() {
     navigator.clipboard.writeText(roomCode);
     setCopied(true);
@@ -251,6 +262,13 @@ export default function LobbyClient() {
             <div className="bg-white p-3 rounded-lg">
               <QRCodeSVG value={lobbyUrl} size={160} />
             </div>
+            <button
+              onClick={handleShareLink}
+              className="mt-3 w-full py-2.5 rounded-lg border border-green-600 text-green-300
+                         hover:border-[#d4af37] hover:text-[#d4af37] transition-colors text-sm font-medium"
+            >
+              {linkCopied ? t.share.copied : t.share.button}
+            </button>
           </div>
         )}
 
